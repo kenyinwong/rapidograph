@@ -1,0 +1,201 @@
+/* ---------------------------------------------------------------
+   Personalización Archiblocks para SVG-Edit
+   Paleta: grafito #3d3832 · crema #f6f6f7 · marfil #ffffff
+           rojo #dc3839 · tinto #c2302f
+   Tonos derivados para rellenos y bordes: #e8e8ec, #dfdfe4, #fbe3e3
+   --------------------------------------------------------------- */
+
+:root {
+  /* --- paleta de la interfaz --- */
+  --main-bg-color: #f6f6f7;        /* barras de herramientas */
+  --icon-bg-color: #ffffff;        /* fondo de cada botón */
+  --icon-bg-color-hover: #dc3839;  /* botón bajo el cursor o activo */
+  --text-color: #3d3832;
+  --border-color: #dfdfe4;
+  --canvas-bg-color: #ffffff;
+  --ruler-color: #ffffff;
+  --input-color: #ffffff;
+  --link-color: #c2302f;
+  --orange-color: #dc3839;
+
+  /* --- tamaño de los iconos de herramienta --- */
+  --se-icono: 34px;
+  --se-icono-relleno: 5px;
+  --se-icono-margen: 5px 2px;
+  --se-icono-filtro-activo: brightness(0) invert(1); /* icono blanco sobre rojo */
+
+  --top-toolbar-min-height: 92px;
+}
+
+.svg_editor {
+  font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+  font-size: 8.5pt;
+  /* la columna izquierda se adapta al ancho de la barra de herramientas */
+  grid-template-columns: auto 15px 50px 1fr 15px;
+}
+
+.svg_editor.open {
+  grid-template-columns: auto 15px 50px 1fr 220px;
+}
+
+/* Con los iconos grandes, la barra de herramientas ya no cabe en una sola
+   columna en pantallas normales: en vez de esconder herramientas tras un
+   desplazamiento, se reparte en varias columnas según la altura disponible. */
+#tools_left {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  height: 100%;
+  overflow: visible;
+  margin: 0;
+}
+
+/* --- lienzo y reglas --- */
+#workarea { background-color: #e8e8ec; }
+#ruler_x, #ruler_y, #ruler_corner { border-color: var(--border-color) !important; }
+
+/* --- textos que el tema original ponía en blanco --- */
+#title_panel > p,
+#layersLabel,
+#sidepanel_handle { color: var(--text-color); }
+
+/* --- botón y menú principal --- */
+#main_button { color: var(--text-color); }
+#main_icon:hover, #main_icon.buttondown { background: #ffffff !important; }
+#main_menu {
+  background: #ffffff;
+  box-shadow: rgba(61, 56, 50, .25) 0 2px 8px;
+  border: 1px solid var(--border-color);
+}
+#main_menu li:hover { background: #fbe3e3; }
+
+/* --- listas desplegables --- */
+.dropdown button {
+  border-color: var(--border-color);
+  background-color: #ffffff;
+}
+.dropdown button.down { background-color: #e8e8ec; }
+.dropdown li {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+}
+.dropdown li:hover,
+.dropdown li.special:hover,
+ul li.current { background-color: #fbe3e3; }
+
+/* --- panel de capas --- */
+#layerlist { background-color: #ffffff; }
+#layerlist tr.layer { background-color: #ffffff; }
+#layerlist tr.layersel { background-color: #fbe3e3; }
+
+/* --- campos de texto y numéricos --- */
+se-input, se-spin-input, elix-input, elix-number-spin-box, input, select {
+  color: var(--text-color);
+}
+
+/* --- detalles sueltos --- */
+#toggle_stroke_tools:before { color: var(--text-color); }
+#toggle_stroke_tools:hover { background: #ffffff; }
+#tools_left::-webkit-scrollbar-thumb,
+#tools_bottom::-webkit-scrollbar-thumb { background-color: #a9a9b0; }
+#tool_tooltip { color: #ffffff; }
+
+/* ---------------------------------------------------------------
+   Interacción y detalles de acabado
+   Criterios tomados de las habilidades instaladas (impeccable ·
+   emil-design-eng): el hover no puede confundirse con el estado
+   activo, la pulsación se siente, las transiciones son cortas e
+   interrumpibles, y las superficies del navegador (selección,
+   cursor de texto, barras de desplazamiento, foco) también se
+   visten con la paleta.
+   --------------------------------------------------------------- */
+
+:root {
+  --se-hover: #e8e8ec;              /* cursor encima: crema oscura, no rojo */
+  --se-pulsacion: scale(0.96);      /* respuesta al clic */
+  --se-transicion: 120ms;
+  --se-curva: cubic-bezier(0.23, 1, 0.32, 1);
+  --se-radio: 6px;
+  --se-desactivado: 0.4;
+  --se-desplegable-x: 50px;         /* separación de los menús desplegables */
+}
+
+/* Quien haya pedido menos movimiento en su sistema, no lo recibe. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --se-transicion: 0s;
+    --se-pulsacion: none;
+  }
+}
+
+/* --- separación entre zonas: sombra con desplazamiento y difuminado --- */
+#tools_top {
+  box-shadow: 0 1px 0 rgba(61, 56, 50, .12), 0 3px 8px rgba(61, 56, 50, .07);
+  z-index: 2;
+  gap: 2px 6px;
+  padding-top: 2px;
+}
+
+#tools_bottom {
+  border-top: 1px solid var(--border-color);
+  gap: 4px;
+}
+
+#tools_left { box-shadow: 1px 0 0 rgba(61, 56, 50, .10); }
+
+/* --- superficies del navegador --- */
+::selection {
+  background: rgba(220, 56, 57, .22);
+  color: #3d3832;
+}
+
+input, textarea, [contenteditable] { caret-color: #dc3839; }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c3c3ca transparent;
+}
+
+#layerlist::-webkit-scrollbar,
+#sidepanel_content::-webkit-scrollbar { width: 8px; height: 8px; }
+
+#layerlist::-webkit-scrollbar-thumb,
+#sidepanel_content::-webkit-scrollbar-thumb {
+  background-color: #c3c3ca;
+  border-radius: 4px;
+}
+
+/* Foco visible sólo para quien navega con teclado. */
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+se-button:focus-visible,
+se-input:focus-visible,
+se-spin-input:focus-visible,
+elix-input:focus-visible {
+  outline: 2px solid #dc3839;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* --- legibilidad de los campos numéricos --- */
+.svg_editor { font-size: 11.5px; }
+
+se-spin-input, se-input, elix-number-spin-box, elix-input, input, #zoom {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- estados --- */
+#layerlist tr.layer:hover { background-color: #f1f1f4; }
+.dropdown li, #main_menu li { transition: background-color var(--se-transicion) ease; }
+
+/* --- superficies flotantes: menús, desplegables y diálogos --- */
+:root {
+  --se-sombra: 0 2px 4px rgba(61, 56, 50, .10), 0 8px 24px rgba(61, 56, 50, .14);
+  --se-dialogo-fondo: #ffffff;
+  --se-dialogo-texto: #3d3832;
+}
+
+#dialog_content input[type="text"],
+#dialog_content select { color: var(--text-color); }

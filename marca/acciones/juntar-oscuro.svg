@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- Juntar líneas: dos segmentos que se encuentran en un vértice. -->
+  <g stroke="#3d3832" stroke-width="16" stroke-linecap="round">
+    <line x1="36" y1="60" x2="196" y2="128" />
+    <line x1="36" y1="196" x2="196" y2="128" />
+  </g>
+  <circle cx="196" cy="128" r="17" fill="#3d3832" />
+  <rect x="24" y="48" width="24" height="24" rx="3" fill="#ffffff" stroke="#3d3832" stroke-width="12" />
+  <rect x="24" y="184" width="24" height="24" rx="3" fill="#ffffff" stroke="#3d3832" stroke-width="12" />
+</svg>

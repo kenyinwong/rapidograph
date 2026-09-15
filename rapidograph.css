@@ -1,0 +1,549 @@
+/* ===============================================================
+   RapidoGraph — capa de interfaz sobre SVG-Edit
+   Se carga después de svgedit.css y personalizacion.css.
+
+   Paleta: tinta #302a52 (banda y marca) · crema #f6f6f7 (barras)
+           marfil #ffffff (superficies) · grafito #3d3832 (texto)
+           rojo #dc3839 (herramienta activa)
+   =============================================================== */
+
+:root {
+  --rg-tinta: #302a52;
+  --rg-tinta-alta: #423a6d;
+  --rg-tinta-texto: #e9e5f5;
+  --rg-banda: 232px;
+  --se-icono-chico: 26px;        /* botones del panel de capas */
+  --se-icono-chico-relleno: 4px;
+}
+
+/* --- rejilla: la banda llega hasta arriba; la barra queda a su derecha --- */
+.svg_editor {
+  position: relative;
+  grid-template-columns: var(--rg-banda) 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "banda    top"
+    "banda    workarea"
+    "bottom   bottom";
+}
+
+.svg_editor.open {
+  grid-template-columns: var(--rg-banda) 1fr;
+}
+
+#tools_top { grid-area: top; }
+#workarea { grid-area: workarea; }
+#tools_bottom { grid-area: bottom; }
+#rg_banda { grid-area: banda; }
+
+/* Las reglas originales se sustituyen por las que se dibujan pegadas a la página. */
+#ruler_x, #ruler_y, #ruler_corner { display: none; }
+
+/* --- barra superior --- */
+#tools_top {
+  align-items: center;
+  padding: 4px 10px 2px;
+  row-gap: 2px;
+}
+
+#rg_sesion {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+  flex: 0 0 auto;
+}
+
+#rg_sesion .rg_correo {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: .8;
+}
+
+.rg_boton {
+  font: inherit;
+  color: var(--text-color);
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--se-radio, 6px);
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: background-color var(--se-transicion, 0s) ease,
+              transform var(--se-transicion, 0s) var(--se-curva, ease-out);
+}
+
+.rg_boton:hover { background: var(--se-hover, #e8e8ec); }
+.rg_boton:active { transform: var(--se-pulsacion, none); }
+
+/* --- banda oscura, de arriba a abajo --- */
+#rg_banda {
+  background: var(--rg-tinta);
+  color: var(--rg-tinta-texto);
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+}
+
+/* logotipo centrado, en blanco */
+#rg_marca {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 6px;
+}
+
+#rg_marca img { width: 206px; height: auto; }
+
+/* comandos de archivo (los del antiguo menú SVG-Edit) */
+#rg_acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rg-tinta-alta);
+}
+
+.rg_accion {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color var(--se-transicion, 0s) ease,
+              transform var(--se-transicion, 0s) var(--se-curva, ease-out);
+}
+
+.rg_accion:hover { background: var(--rg-tinta-alta); }
+.rg_accion:active { transform: var(--se-pulsacion, none); }
+.rg_accion img { display: block; }
+
+.rg_accion:focus-visible {
+  outline: 2px solid var(--rg-tinta-texto);
+  outline-offset: 1px;
+}
+
+#rg_banda .rg_titulo {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #a79fd0;
+  margin: 0;
+}
+
+#rg_banda #sidepanels {
+  grid-area: auto;
+  position: static;
+  width: auto;
+}
+
+#rg_banda #sidepanel_handle { display: none; }
+#rg_banda #sidepanel_content { display: block !important; }
+
+#rg_banda #layerpanel { padding-left: 0; }
+#rg_banda #layersLabel { display: none; }
+
+#rg_banda #layerbuttons {
+  width: auto;
+  height: auto;
+  justify-content: flex-start;
+  gap: 3px;
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+#rg_banda #sidepanels { flex: 1; display: flex; flex-direction: column; }
+#rg_banda #sidepanel_content { flex: 1; display: flex !important; flex-direction: column; }
+#rg_banda #layerpanel { flex: 1; display: flex; flex-direction: column; }
+
+#rg_banda #layerlist {
+  width: 100%;
+  margin: 0;
+  border-color: transparent;
+  border-radius: var(--se-radio, 6px);
+  overflow: auto;
+  flex: 1;
+  min-height: 180px;
+  display: block;
+  background: #ffffff;
+}
+
+#rg_banda #layerlist tbody { display: table; width: 100%; }
+
+#rg_banda #layerlist tr.layer > td { padding: 3px 4px; }
+#rg_banda #selLayerNames { margin-top: 10px; }
+#rg_banda p { color: var(--rg-tinta-texto); margin: 6px 0 0; }
+
+/* --- panel flotante de herramientas (fuera de la banda) --- */
+#rg_paleta {
+  position: absolute;
+  left: calc(var(--rg-banda) + 18px);
+  top: calc(var(--top-toolbar-min-height) + 18px);
+  z-index: 6;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(48, 42, 82, .10), 0 10px 28px rgba(48, 42, 82, .16);
+  padding: 6px;
+  display: flex;
+}
+
+#rg_paleta #tools_left {
+  position: static;
+  box-shadow: none;
+  overflow: visible;
+  height: auto;
+}
+
+/* --- barra inferior: la paleta de colores va a la izquierda --- */
+#palette.rg_izquierda {
+  margin-left: 8px;
+  margin-right: 0;
+  order: 0;
+}
+
+/* --- reglas y guías pegadas a la página --- */
+.rg_regla {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  background: #ffffff;
+  display: none;
+}
+
+#rg_guias { background: transparent; z-index: 2; }
+
+/* --- panel de configuración de guías --- */
+#rg_panel_guias {
+  position: absolute;
+  z-index: 12;
+  min-width: 230px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--se-sombra, 0 8px 24px rgba(48, 42, 82, .2));
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--text-color);
+}
+
+#rg_panel_guias .rg_fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+#rg_panel_guias input[type="number"] {
+  width: 62px;
+  font: inherit;
+  color: var(--text-color);
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 4px 6px;
+  margin-left: auto;
+}
+
+#rg_panel_guias input[type="color"] {
+  margin-left: auto;
+  width: 44px;
+  height: 26px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 2px;
+  cursor: pointer;
+}
+
+#rg_panel_guias input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--rg-tinta);
+}
+
+/* --- textos de la banda --- */
+#rg_banda, #rg_banda td, #rg_banda th { color: var(--rg-tinta-texto); }
+#rg_banda #layerlist td { color: var(--text-color); }
+
+/* ---------------------------------------------------------------
+   Observaciones del anotador (03-09-2026)
+   --------------------------------------------------------------- */
+
+/* obs. 1 (5ª ronda) · marcadores de línea a la izquierda, en lámina blanca */
+#marker_panel {
+  order: -1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 2px 8px;
+  margin-right: 8px;
+}
+
+/* 1 · la botonera de capas cabe en la banda y salta de línea si hace falta */
+#rg_banda #layerbuttons {
+  flex-wrap: wrap;
+  max-width: 100%;
+  border: 0;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+/* 3 · comandos de archivo con iconos al 150 % */
+.rg_accion { width: 52px; height: 52px; }
+
+/* 4 · nombre del archivo al doble */
+#title_panel > p {
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/* 5 · botones de acciones de capa (duplicar, fusionar) */
+.rg_capa_btn {
+  width: var(--se-icono-chico-total, 34px);
+  height: var(--se-icono-chico-total, 34px);
+  display: grid;
+  place-items: center;
+  background: var(--icon-bg-color, #ffffff);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color var(--se-transicion, 0s) ease,
+              transform var(--se-transicion, 0s) var(--se-curva, ease-out);
+}
+
+.rg_capa_btn:hover { background: var(--se-hover, #e8e8ec); }
+.rg_capa_btn:active { transform: var(--se-pulsacion, none); }
+.rg_capa_btn img { display: block; }
+
+/* 8 · barra inferior más grande, con tamaños reales.
+   (El zoom:2 doblaba la barra pero corría fuera de pantalla los desplegables
+   de terminal/unión de línea y descuadraba el selector de color: los
+   desplegables usan position:fixed y el zoom duplica sus coordenadas.) */
+:root { --se-cuadrito: 22px; }
+
+#tools_bottom {
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+#tools_bottom .bottom-icon { width: 30px; }
+
+/* 9 · la página del lienzo sin relleno blanco */
+#canvasBackground > rect:first-of-type { fill: transparent; }
+
+/* 10 · el interruptor de guías, con icono, entre las herramientas */
+.rg_herramienta {
+  width: 44px;
+  height: 44px;
+  margin: var(--se-icono-margen, 5px 2px);
+  display: grid;
+  place-items: center;
+  background: var(--icon-bg-color, #ffffff);
+  border: none;
+  border-radius: var(--se-radio, 6px);
+  cursor: pointer;
+  transition: background-color var(--se-transicion, 0s) ease,
+              transform var(--se-transicion, 0s) var(--se-curva, ease-out);
+}
+
+.rg_herramienta:hover { background: var(--se-hover, #e8e8ec); }
+.rg_herramienta:active { transform: var(--se-pulsacion, none); }
+.rg_herramienta img { display: block; }
+
+/* 11 · todo lo de la barra superior alineado al centro vertical */
+#tools_top { align-items: center; align-content: center; }
+#tools_top > * { align-items: center; }
+
+/* 12 · zona de sesión al doble */
+#rg_sesion { zoom: 2; }
+
+/* modo activo del interruptor de terminaciones redondeadas */
+.rg_herramienta.rg_activa {
+  background: var(--icon-bg-color-hover, #dc3839);
+}
+
+.rg_herramienta.rg_activa img {
+  filter: var(--se-icono-filtro-activo, none);
+}
+
+/* --- manijas de extremos y avisos de las herramientas de vértices --- */
+#rg_extremos { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+
+.rg_manija {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  background: #ffffff;
+  border: 2px solid #dc3839;
+  border-radius: 2px;
+  cursor: grab;
+  pointer-events: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+
+.rg_manija:hover { background: #fbe3e3; }
+.rg_manija:active { cursor: grabbing; }
+
+#rg_aviso_modo {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--top-toolbar-min-height) + 10px);
+  transform: translateX(-50%);
+  z-index: 12;
+  background: #302a52;
+  color: #ffffff;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 7px 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  pointer-events: none;
+}
+
+
+/* la lupa del panel duplica el control de zoom de la barra inferior */
+#tool_zoom { display: none; }
+
+/* botón con icono en la barra superior (guías) */
+.rg_boton_icono { padding: 5px 8px; display: grid; place-items: center; }
+.rg_boton_icono img { display: block; }
+
+/* --- herramientas de precisión (imán, medir, empujar) --- */
+#rg_punto_iman {
+  position: absolute;
+  z-index: 7;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #dc3839;
+  border-radius: 999px;
+  background: rgba(220, 56, 57, .25);
+  pointer-events: none;
+}
+
+#rg_medida { z-index: 4; background: transparent; }
+
+#rg_medida_rotulo {
+  position: absolute;
+  z-index: 12;
+  transform: translateX(-50%);
+  background: #302a52;
+  color: #ffffff;
+  font-size: 12.5px;
+  border-radius: 6px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+}
+
+#rg_halo_empuje {
+  position: absolute;
+  z-index: 7;
+  transform: translate(-50%, -50%);
+  border: 1.5px dashed #dc3839;
+  border-radius: 999px;
+  background: rgba(220, 56, 57, .06);
+  pointer-events: none;
+}
+
+#rg_panel_guias select,
+#rg_panel_guias input[type="text"] {
+  font: inherit;
+  color: var(--text-color);
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 4px 6px;
+}
+
+#rg_panel_guias select { margin-left: auto; }
+#rg_panel_guias input[type="text"] { width: 44px; }
+#rg_panel_guias #rg_g_escala { margin-left: 0; }
+
+/* --- herramientas de dibujo avanzado --- */
+#rg_aviso_dibujo {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--top-toolbar-min-height) + 46px);
+  transform: translateX(-50%);
+  z-index: 12;
+  background: #302a52;
+  color: #ffffff;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 7px 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  pointer-events: none;
+}
+
+#rg_campo_paralela {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--top-toolbar-min-height) + 84px);
+  transform: translateX(-50%);
+  z-index: 12;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-color);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .15);
+}
+
+#rg_campo_paralela input {
+  width: 64px;
+  font: inherit;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 3px 6px;
+  margin: 0 4px;
+}
+
+#rg_panel_pinceles {
+  position: absolute;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--se-sombra, 0 8px 24px rgba(48, 42, 82, .2));
+  padding: 8px;
+}
+
+.rg_pincel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-color);
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.rg_pincel:hover { background: #ececf0; }
+.rg_pincel.rg_elegido { background: #fbe3e3; }
