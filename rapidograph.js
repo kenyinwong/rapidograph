@@ -10,10 +10,15 @@
  *   · exportación a DXF y sesión por correo en la barra superior
  */
 
-import { descargarDXF } from './rapidograph-dxf.js'
-import { montarVertices } from './rapidograph-vertices.js'
-import { montarPrecision } from './rapidograph-precision.js'
-import { montarDibujo } from './rapidograph-dibujo.js'
+// Los módulos hijos heredan la marca de versión con que se cargó este archivo,
+// para que tampoco los sirva la caché del navegador tras publicar un cambio.
+const version = new URL(import.meta.url).search
+const [{ descargarDXF }, { montarVertices }, { montarPrecision }, { montarDibujo }] = await Promise.all([
+  import('./rapidograph-dxf.js' + version),
+  import('./rapidograph-vertices.js' + version),
+  import('./rapidograph-precision.js' + version),
+  import('./rapidograph-dibujo.js' + version)
+])
 
 const CLAVE_SESION = 'rg_sesion'
 const CLAVE_GUIAS = 'rg_guias'

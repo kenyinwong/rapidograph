@@ -11,8 +11,14 @@
   <!-- STYLESHEETS (others loaded dynamically) -->
   <style id="styleoverrides" media="screen"></style>
   <link href="./svgedit.css" rel="stylesheet" media="all">
-  <link href="./personalizacion.css" rel="stylesheet" media="all">
-  <link href="./rapidograph.css" rel="stylesheet" media="all">
+  <script>
+    // GitHub Pages deja cada archivo 10 minutos en la caché del navegador. Los
+    // propios de RapidoGraph cambian seguido, así que se piden con una marca
+    // distinta en cada carga; el motor de SVG-Edit sí se sigue cacheando.
+    window.RG_VERSION = '?v=' + Date.now()
+    document.write('<link href="./personalizacion.css' + RG_VERSION + '" rel="stylesheet" media="all">' +
+      '<link href="./rapidograph.css' + RG_VERSION + '" rel="stylesheet" media="all">')
+  </script>
   <!-- Lacking browser support -->
   <script type="module" src="./browser-not-supported.js"></script>
   <title>RapidoGraph</title>
@@ -64,7 +70,10 @@
     console.info('xdomain config activated')
   }
 </script>
-<script type="module" src="./rapidograph.js"></script>
-<script type="module" src="./anotador.js"></script>
+<script type="module">
+  for (const modulo of ['./rapidograph.js', './anotador.js']) {
+    import(modulo + window.RG_VERSION).catch(e => console.error('No cargó ' + modulo, e))
+  }
+</script>
 
 </html>

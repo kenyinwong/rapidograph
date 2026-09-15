@@ -341,7 +341,9 @@
       location.href = './index.html'
     })
   </script>
-  <script type="module" src="./anotador.js"></script>
+  <script type="module">
+    import('./anotador.js?v=' + Date.now()).catch(e => console.error('No cargó el anotador', e))
+  </script>
 </body>
 
 </html>
