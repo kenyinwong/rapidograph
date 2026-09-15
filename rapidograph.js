@@ -96,7 +96,7 @@ function montarBarraSuperior (editor, sesion, guias) {
   botonGuias.addEventListener('click', () => guias.alternarPanel(botonGuias))
 
   if (sesion) {
-    crear('span', { className: 'rg_correo', textContent: sesion.correo, title: sesion.correo }, zona)
+    if (sesion.correo) crear('span', { className: 'rg_correo', textContent: sesion.correo, title: sesion.correo }, zona)
     const salir = crear('button', { className: 'rg_boton', textContent: 'Salir', type: 'button' }, zona)
     salir.addEventListener('click', cerrarSesion)
   }

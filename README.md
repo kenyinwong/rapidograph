@@ -7,8 +7,7 @@ PDF y **DXF**.
 
 **Usar en línea:** https://kenyinwong.github.io/rapidograph/
 
-Todo corre en el navegador: los dibujos no se suben a ningún servidor. La
-sesión por correo solo identifica el trabajo en este equipo.
+Todo corre en el navegador: los dibujos no se suben a ningún servidor.
 
 ## Créditos y licencias
 - Motor de edición: [SVG-Edit](https://github.com/SVG-Edit/svgedit) 7.4.2 — MIT

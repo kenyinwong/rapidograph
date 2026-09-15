@@ -109,7 +109,8 @@
       padding: clamp(28px, 5vw, 64px);
     }
 
-    form {
+    form,
+    .entrada {
       width: 100%;
       max-width: 380px;
     }
@@ -323,147 +324,22 @@
   </section>
 
   <section class="ingreso">
-    <form id="formulario" novalidate>
+    <div class="entrada">
       <h2>Entrar a RapidoGraph</h2>
       <p class="subtitulo">
-        Escribe tu correo para identificar tu trabajo. No hay contraseña: la sesión se
-        guarda solamente en este equipo.
+        Dibuja directo en el navegador. Tu trabajo se guarda solamente en este equipo.
       </p>
-
-      <label for="correo">Correo</label>
-      <input id="correo" name="correo" type="email" inputmode="email" autocomplete="email"
-        placeholder="tunombre@correo.cl" aria-describedby="aviso" required />
-      <p class="aviso" id="aviso" role="status"></p>
-
-      <button type="submit">Entrar</button>
-
-      <div class="separador" aria-hidden="true"><span>o</span></div>
-
-      <!-- Cuando hay un ID de cliente configurado, aquí se dibuja el botón
-           oficial de Google; si no, un botón propio que explica cómo activarlo. -->
-      <div id="zona_google">
-        <button type="button" id="boton_google" class="google">
-          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-          </svg>
-          Continuar con Google
-        </button>
-        <p class="aviso" id="aviso_google" role="status"></p>
-      </div>
-
-      <p class="letra-chica">
-        Tu correo no se envía a ninguna parte: queda en el almacenamiento del navegador
-        para mostrar quién está trabajando y separar tus dibujos.
-      </p>
-
-      <div class="ultimo" id="ultimo" hidden>
-        La última sesión en este equipo fue <strong id="ultimo_correo"></strong>.
-        <button type="button" id="continuar">Continuar con esa cuenta</button>
-      </div>
-    </form>
+      <button type="button" id="entrar">Entrar</button>
+    </div>
   </section>
 
   <script type="module">
-    import { GOOGLE_CLIENT_ID } from './config-google.js'
-
-    const CLAVE = 'rg_sesion'
-    const formulario = document.getElementById('formulario')
-    const campo = document.getElementById('correo')
-    const aviso = document.getElementById('aviso')
-
-    const leer = () => {
+    document.getElementById('entrar').addEventListener('click', () => {
       try {
-        const bruto = localStorage.getItem(CLAVE)
-        return bruto ? JSON.parse(bruto) : null
-      } catch { return null }
-    }
-
-    const entrar = (correo) => {
-      try {
-        localStorage.setItem(CLAVE, JSON.stringify({ correo, desde: new Date().toISOString() }))
-      } catch {
-        aviso.textContent = 'El navegador no permite guardar la sesión; se abrirá igual.'
-      }
+        localStorage.setItem('rg_sesion', JSON.stringify({ correo: null, desde: new Date().toISOString() }))
+      } catch { /* modo privado: el editor abre igual */ }
       location.href = './index.html'
-    }
-
-    // Si ya hubo una sesión en este equipo, se ofrece continuar con ella.
-    const previa = leer()
-    if (previa && previa.correo) {
-      campo.value = previa.correo
-      const bloque = document.getElementById('ultimo')
-      document.getElementById('ultimo_correo').textContent = previa.correo
-      bloque.hidden = false
-      document.getElementById('continuar').addEventListener('click', () => entrar(previa.correo))
-    }
-
-    campo.addEventListener('input', () => {
-      campo.removeAttribute('aria-invalid')
-      aviso.textContent = ''
     })
-
-    formulario.addEventListener('submit', (evento) => {
-      evento.preventDefault()
-      const correo = campo.value.trim()
-      const valido = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo)
-      if (!valido) {
-        campo.setAttribute('aria-invalid', 'true')
-        aviso.textContent = correo ? 'Ese correo no parece válido.' : 'Escribe tu correo para entrar.'
-        campo.focus()
-        return
-      }
-      entrar(correo)
-    })
-
-    /* ---------- acceso con Google (Google Identity Services) ---------- */
-    const botonGoogle = document.getElementById('boton_google')
-    const avisoGoogle = document.getElementById('aviso_google')
-
-    // El token de Google es un JWT: la identidad viene en la parte del medio.
-    const correoDelToken = (jwt) => {
-      const cuerpo = JSON.parse(atob(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-      return cuerpo.email_verified ? cuerpo.email : null
-    }
-
-    const cargarGoogle = () => new Promise((resolve, reject) => {
-      if (window.google && window.google.accounts) return resolve()
-      const script = document.createElement('script')
-      script.src = 'https://accounts.google.com/gsi/client'
-      script.onload = () => resolve()
-      script.onerror = () => reject(new Error('sin conexión con Google'))
-      document.head.append(script)
-    })
-
-    if (GOOGLE_CLIENT_ID) {
-      cargarGoogle().then(() => {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (r) => {
-            const correo = correoDelToken(r.credential)
-            if (correo) entrar(correo)
-            else avisoGoogle.textContent = 'Google no confirmó el correo de esa cuenta.'
-          }
-        })
-        // el botón oficial reemplaza al propio
-        botonGoogle.remove()
-        window.google.accounts.id.renderButton(document.getElementById('zona_google'), {
-          type: 'standard', theme: 'outline', size: 'large',
-          text: 'continue_with', width: 380, locale: 'es'
-        })
-      }).catch(() => {
-        avisoGoogle.textContent = 'No se pudo cargar el acceso de Google (¿sin internet?). Usa el correo de más arriba.'
-      })
-    } else {
-      botonGoogle.addEventListener('click', () => {
-        avisoGoogle.innerHTML = 'Para activar el acceso con Google hay que crear un ' +
-          'ID de cliente OAuth (gratis) en la <a href="https://console.cloud.google.com/apis/credentials">consola de Google</a> ' +
-          'y pegarlo en <code>app/config-google.js</code>; las instrucciones están en ese archivo. ' +
-          'Mientras tanto, entra con tu correo más arriba.'
-      })
-    }
   </script>
   <script type="module" src="./anotador.js"></script>
 </body>
