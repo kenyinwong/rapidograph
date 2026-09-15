@@ -425,44 +425,68 @@ const PINCELES = [
   ['Trazos', { ancho: 2, opacidad: 1, tapa: 'butt', guiones: '8,5' }]
 ]
 
-function montarPinceles (editor, herramientas) {
-  const boton = botonHerramienta(herramientas, 'pincel-oscuro',
-    'Pinceles: preajustes de trazo para lo que dibujes después')
-  const panel = document.createElement('div')
-  panel.id = 'rg_panel_pinceles'
-  panel.hidden = true
+// Modos en los que se dibuja un trazo: los del editor y los propios.
+const MODOS_DE_TRAZO = [
+  'fhpath', 'line', 'path', 'rect', 'square', 'fhrect', 'ellipse', 'circle',
+  'fhellipse', 'star', 'polygon'
+]
+const MODOS_PROPIOS_DE_TRAZO = ['polilinea', 'arco']
+
+/**
+ * Franja de pinceles en la barra superior. Solo aparece mientras hay una
+ * herramienta de dibujo elegida, para no tapar el lienzo ni el panel.
+ */
+function montarPinceles (editor, gestor) {
+  const franja = document.createElement('div')
+  franja.id = 'rg_pinceles'
+  franja.setAttribute('role', 'group')
+  franja.setAttribute('aria-label', 'Pinceles')
+  franja.hidden = true
+
+  const titulo = document.createElement('span')
+  titulo.className = 'rg_pinceles_titulo'
+  titulo.textContent = 'Pincel'
+  franja.append(titulo)
+
   for (const [nombre, def] of PINCELES) {
-    const fila = document.createElement('button')
-    fila.type = 'button'
-    fila.className = 'rg_pincel'
-    fila.innerHTML = `<svg viewBox="0 0 120 24" width="120" height="24" aria-hidden="true">
-        <line x1="6" y1="12" x2="114" y2="12" stroke="#3d3832"
-          stroke-width="${Math.min(def.ancho, 16)}" stroke-opacity="${def.opacidad}"
+    const boton = document.createElement('button')
+    boton.type = 'button'
+    boton.className = 'rg_pincel'
+    boton.title = `${nombre}: grosor ${def.ancho}` +
+      (def.opacidad < 1 ? `, opacidad ${Math.round(def.opacidad * 100)} %` : '') +
+      (def.guiones !== 'none' ? ', discontinuo' : '')
+    boton.innerHTML = `<svg viewBox="0 0 56 18" width="56" height="18" aria-hidden="true">
+        <line x1="5" y1="9" x2="51" y2="9" stroke="#3d3832"
+          stroke-width="${Math.min(def.ancho, 12)}" stroke-opacity="${def.opacidad}"
           stroke-linecap="${def.tapa}" ${def.guiones !== 'none' ? `stroke-dasharray="${def.guiones}"` : ''} />
       </svg><span>${nombre}</span>`
-    fila.addEventListener('click', () => {
+    boton.addEventListener('click', () => {
       sc().setStrokeWidth(def.ancho)
       sc().setStrokeAttr('stroke-linecap', def.tapa)
       sc().setStrokeAttr('stroke-dasharray', def.guiones)
       sc().setStrokeAttr('stroke-opacity', def.opacidad)
-      for (const f of panel.querySelectorAll('.rg_pincel')) f.classList.remove('rg_elegido')
-      fila.classList.add('rg_elegido')
+      for (const b of franja.querySelectorAll('.rg_pincel')) b.setAttribute('aria-pressed', 'false')
+      boton.setAttribute('aria-pressed', 'true')
     })
-    panel.append(fila)
+    boton.setAttribute('aria-pressed', 'false')
+    franja.append(boton)
   }
-  editor.append(panel)
 
-  boton.addEventListener('click', () => {
-    if (!panel.hidden) { panel.hidden = true; return }
-    const r = boton.getBoundingClientRect()
-    const e = editor.getBoundingClientRect()
-    panel.style.left = Math.min(r.right - e.left + 10, e.width - 200) + 'px'
-    panel.style.top = Math.min(Math.max(r.top - e.top, 8), e.height - 300) + 'px'
-    panel.hidden = false
-  })
-  document.addEventListener('pointerdown', (e) => {
-    if (!panel.hidden && !panel.contains(e.target) && !boton.contains(e.target)) panel.hidden = true
-  })
+  // antes de la zona de sesión, para que quede a la izquierda de guías y correo
+  const barra = editor.querySelector('#tools_top')
+  const sesion = barra.querySelector('#rg_sesion')
+  barra.insertBefore(franja, sesion)
+
+  const dibujando = () => {
+    const modo = sc() && sc().getMode()
+    return MODOS_DE_TRAZO.includes(modo) || MODOS_PROPIOS_DE_TRAZO.includes(gestor.activo())
+  }
+  // el editor no avisa al cambiar de herramienta, así que se consulta seguido;
+  // el DOM solo se toca cuando el estado cambia
+  setInterval(() => {
+    const visible = dibujando()
+    if (franja.hidden === visible) franja.hidden = !visible
+  }, 150)
 }
 
 /* ---------------------------------------------------------------- montaje */
@@ -475,5 +499,5 @@ export function montarDibujo (editor, iman) {
   montarParalela(editor, herramientas, gestor)
   montarArco(editor, herramientas, gestor, previa, iman)
   montarBote(editor, herramientas, gestor)
-  montarPinceles(editor, herramientas)
+  montarPinceles(editor, gestor)
 }

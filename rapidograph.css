@@ -518,32 +518,56 @@
   margin: 0 4px;
 }
 
-#rg_panel_pinceles {
-  position: absolute;
-  z-index: 12;
+/* --- franja de pinceles: barra superior, solo con herramientas de dibujo --- */
+#rg_pinceles {
   display: flex;
-  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 2px;
+  margin-left: 12px;
+  padding: 3px 6px;
   background: #ffffff;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  box-shadow: var(--se-sombra, 0 8px 24px rgba(48, 42, 82, .2));
-  padding: 8px;
+  border-radius: 8px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* svgedit.css pone display:flex a todo hijo de #tools_top y anula [hidden] */
+#rg_pinceles[hidden] { display: none; }
+
+.rg_pinceles_titulo {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #75757d;
+  padding: 0 6px 0 2px;
 }
 
 .rg_pincel {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 1px;
+  flex: 0 0 auto;
   font: inherit;
-  font-size: 12.5px;
+  font-size: 11px;
+  line-height: 1.2;
   color: var(--text-color);
   background: transparent;
   border: none;
-  border-radius: 7px;
-  padding: 5px 8px;
+  border-radius: 6px;
+  padding: 3px 6px;
   cursor: pointer;
+  transition: background-color var(--se-transicion, 0s) ease;
 }
 
+.rg_pincel svg { display: block; }
 .rg_pincel:hover { background: #ececf0; }
-.rg_pincel.rg_elegido { background: #fbe3e3; }
+.rg_pincel[aria-pressed="true"] { background: #fbe3e3; }
+
+.rg_pincel:focus-visible {
+  outline: 2px solid var(--rg-tinta);
+  outline-offset: 1px;
+}
