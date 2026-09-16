@@ -339,7 +339,10 @@ function montarUnirExtender (editor, herramientas) {
 
   // en modo activo, el clic elige líneas y no llega a la aplicación
   const zona = editor.querySelector('#workarea')
-  for (const tipo of ['pointerdown', 'pointerup', 'mousedown', 'mouseup']) {
+  for (const tipo of ['pointerdown', 'pointerup']) {
+    zona.addEventListener(tipo, (e) => { if (modo) e.stopPropagation() }, true)
+  }
+  for (const tipo of ['mousedown', 'mouseup']) {
     zona.addEventListener(tipo, (e) => { if (modo) { e.preventDefault(); e.stopPropagation() } }, true)
   }
   zona.addEventListener('click', (e) => {

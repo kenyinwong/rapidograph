@@ -96,7 +96,7 @@ function montarBarraSuperior (editor, sesion, guias) {
   const botonGuias = crear('button', { className: 'rg_boton rg_boton_icono', type: 'button' }, zona)
   botonGuias.title = 'Guías de dibujo: encender, distancia y colores'
   botonGuias.setAttribute('aria-haspopup', 'true')
-  const imgGuias = crear('img', { src: './marca/acciones/regla-oscuro.svg', alt: 'Guías' }, botonGuias)
+  const imgGuias = crear('img', { src: './marca/acciones/guias-oscuro.svg', alt: 'Guías' }, botonGuias)
   imgGuias.width = 20; imgGuias.height = 20
   botonGuias.addEventListener('click', () => guias.alternarPanel(botonGuias))
 

@@ -121,8 +121,11 @@ function crearGestor (editor) {
   }
   document.addEventListener('rg:modo', (e) => { if (e.detail.origen !== 'dibujo' && actual) salir() })
 
+  // Los eventos pointer solo se detienen: cancelarlos (preventDefault) haría
+  // que el navegador no emita los mousedown/mousemove/mouseup de ese mismo
+  // puntero, y los modos que dibujan arrastrando no verían nada.
   for (const tipo of ['pointerdown', 'pointerup']) {
-    zona.addEventListener(tipo, (e) => { if (actual) { e.preventDefault(); e.stopPropagation() } }, true)
+    zona.addEventListener(tipo, (e) => { if (actual) e.stopPropagation() }, true)
   }
   zona.addEventListener('mousedown', (e) => {
     if (!actual) return
@@ -336,24 +339,174 @@ function montarBote (editor, herramientas, gestor) {
     return null
   }
 
+  /**
+   * Relleno por perímetros: los trazos del dibujo se pintan en un mapa de
+   * bits, se inunda desde el clic hasta chocar con ellos (o con el borde de
+   * la página) y el contorno de la mancha vuelve al dibujo como un trazado
+   * relleno, colocado detrás de las líneas que lo delimitan.
+   */
+  function zonaDelimitada (x, y) {
+    const contenido = document.getElementById('svgcontent')
+    const res = sc().getResolution()
+    const esc = Math.min(2, 2400 / Math.max(res.w, res.h))       // píxeles por unidad
+    const W = Math.ceil(res.w * esc); const H = Math.ceil(res.h * esc)
+    const lienzo = document.createElement('canvas')
+    lienzo.width = W; lienzo.height = H
+    const ctx = lienzo.getContext('2d', { willReadFrequently: true })
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    ctx.strokeStyle = '#000'; ctx.fillStyle = '#000'
+    const aRaiz = contenido.getScreenCTM().inverse()
+
+    for (const el of contenido.querySelectorAll('line, polyline, polygon, rect, circle, ellipse, path')) {
+      const m = aRaiz.multiply(el.getScreenCTM())     // del elemento a unidades del documento
+      ctx.setTransform(esc * m.a, esc * m.b, esc * m.c, esc * m.d, esc * m.e, esc * m.f)
+      const g = (a) => parseFloat(el.getAttribute(a)) || 0
+      let camino
+      switch (el.tagName.toLowerCase()) {
+        case 'line': camino = new Path2D(`M ${g('x1')} ${g('y1')} L ${g('x2')} ${g('y2')}`); break
+        case 'polyline':
+        case 'polygon': {
+          const pts = [...el.points].map(q => `${q.x} ${q.y}`)
+          if (!pts.length) continue
+          camino = new Path2D('M ' + pts.join(' L ') + (el.tagName.toLowerCase() === 'polygon' ? ' Z' : ''))
+          break
+        }
+        case 'rect': camino = new Path2D(); camino.rect(g('x'), g('y'), g('width'), g('height')); break
+        case 'circle': camino = new Path2D(); camino.arc(g('cx'), g('cy'), g('r'), 0, Math.PI * 2); break
+        case 'ellipse': camino = new Path2D(); camino.ellipse(g('cx'), g('cy'), g('rx'), g('ry'), 0, 0, Math.PI * 2); break
+        default: camino = new Path2D(el.getAttribute('d') || '')
+      }
+      const traza = el.getAttribute('stroke'); const relleno = el.getAttribute('fill')
+      if (traza && traza !== 'none') {
+        ctx.lineWidth = Math.max(1.5 / esc, parseFloat(el.getAttribute('stroke-width')) || 1)
+        ctx.stroke(camino)
+      }
+      if (relleno && relleno !== 'none' && !el.classList.contains('rg_relleno')) ctx.fill(camino)
+    }
+
+    const datos = ctx.getImageData(0, 0, W, H).data
+    const pared = new Uint8Array(W * H)
+    for (let i = 0; i < W * H; i++) pared[i] = datos[i * 4 + 3] > 60 ? 1 : 0
+    const x0 = Math.round(x * esc); const y0 = Math.round(y * esc)
+    if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H || pared[y0 * W + x0]) return null
+
+    // inundación por líneas de barrido
+    const lleno = new Uint8Array(W * H)
+    const pila = [[x0, y0]]
+    let area = 0
+    while (pila.length) {
+      const [sx, sy] = pila.pop()
+      let xi = sx
+      while (xi >= 0 && !pared[sy * W + xi] && !lleno[sy * W + xi]) xi--
+      xi++
+      let arriba = false; let abajo = false
+      while (xi < W && !pared[sy * W + xi] && !lleno[sy * W + xi]) {
+        lleno[sy * W + xi] = 1; area++
+        if (sy > 0) {
+          const libre = !pared[(sy - 1) * W + xi] && !lleno[(sy - 1) * W + xi]
+          if (libre && !arriba) { pila.push([xi, sy - 1]); arriba = true } else if (!libre) arriba = false
+        }
+        if (sy < H - 1) {
+          const libre = !pared[(sy + 1) * W + xi] && !lleno[(sy + 1) * W + xi]
+          if (libre && !abajo) { pila.push([xi, sy + 1]); abajo = true } else if (!libre) abajo = false
+        }
+        xi++
+      }
+    }
+    if (area > W * H * 0.6) return { abierta: true }
+
+    // contorno: aristas entre píxel lleno y vacío, encadenadas en lazos
+    const esta = (px, py) => px >= 0 && py >= 0 && px < W && py < H && lleno[py * W + px] === 1
+    const salidas = new Map()     // vértice de partida -> vértice de llegada
+    const clave = (px, py) => py * (W + 1) + px
+    for (let py = 0; py < H; py++) {
+      for (let px = 0; px < W; px++) {
+        if (!lleno[py * W + px]) continue
+        if (!esta(px, py - 1)) salidas.set(clave(px, py), clave(px + 1, py))
+        if (!esta(px + 1, py)) salidas.set(clave(px + 1, py), clave(px + 1, py + 1))
+        if (!esta(px, py + 1)) salidas.set(clave(px + 1, py + 1), clave(px, py + 1))
+        if (!esta(px - 1, py)) salidas.set(clave(px, py + 1), clave(px, py))
+      }
+    }
+    const lazos = []
+    while (salidas.size) {
+      const inicio = salidas.keys().next().value
+      const lazo = []
+      let actual = inicio
+      while (salidas.has(actual)) {
+        const siguiente = salidas.get(actual)
+        salidas.delete(actual)
+        lazo.push([actual % (W + 1), Math.floor(actual / (W + 1))])
+        actual = siguiente
+        if (actual === inicio) break
+      }
+      if (lazo.length >= 4) lazos.push(lazo)
+    }
+
+    // simplificación (Douglas-Peucker) para quitar la escalera del mapa de bits
+    const simplificar = (pts, eps) => {
+      if (pts.length < 3) return pts
+      const [a, b] = [pts[0], pts[pts.length - 1]]
+      let maxD = 0; let idx = 0
+      const largo = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+      for (let i = 1; i < pts.length - 1; i++) {
+        const d = Math.abs((b[1] - a[1]) * pts[i][0] - (b[0] - a[0]) * pts[i][1] + b[0] * a[1] - b[1] * a[0]) / largo
+        if (d > maxD) { maxD = d; idx = i }
+      }
+      if (maxD <= eps) return [a, b]
+      return [...simplificar(pts.slice(0, idx + 1), eps).slice(0, -1), ...simplificar(pts.slice(idx), eps)]
+    }
+    const eps = 1.6
+    const partes = lazos.map(lazo => {
+      // se abre el lazo en el punto más lejano del primero para no aplanar el cierre
+      let lejos = 0; let dLejos = 0
+      for (let i = 1; i < lazo.length; i++) {
+        const d = Math.hypot(lazo[i][0] - lazo[0][0], lazo[i][1] - lazo[0][1])
+        if (d > dLejos) { dLejos = d; lejos = i }
+      }
+      const mitad1 = simplificar(lazo.slice(0, lejos + 1), eps)
+      const mitad2 = simplificar([...lazo.slice(lejos), lazo[0]], eps)
+      const pts = [...mitad1.slice(0, -1), ...mitad2.slice(0, -1)]
+      return 'M ' + pts.map(q => `${redondear(q[0] / esc)} ${redondear(q[1] / esc)}`).join(' L ') + ' Z'
+    })
+    return { d: partes.join(' '), area: area / (esc * esc) }
+  }
+
   const boton = botonHerramienta(herramientas, 'bote-oscuro',
-    'Bote de pintura: clic dentro de una figura cerrada para rellenarla con el color de relleno actual')
+    'Bote de pintura: clic en una zona delimitada por líneas o dentro de una figura para rellenarla con el color de relleno actual')
   boton.addEventListener('click', () => gestor.activar({
     nombre: 'bote',
     boton,
-    inicio: 'Bote de pintura: clic dentro de la figura a rellenar (Esc para salir)',
+    inicio: 'Bote de pintura: clic en la zona a rellenar (Esc para salir)',
     alClic: (e) => {
       const p = pagina(editor)
       const [x, y] = aDocumento(p, e.clientX, e.clientY)
-      const el = figuraEn(x, y)
-      if (!el) { gestor.avisar('Ahí no hay ninguna figura cerrada. El bote no rellena zonas entre líneas sueltas.'); return }
       const color = (sc().getColor && sc().getColor('fill')) || '#dc3839'
-      const um = sc().undoMgr
-      um.beginUndoableChange('fill', [el]); um.beginUndoableChange('fill-opacity', [el])
-      el.setAttribute('fill', color === 'none' ? '#dc3839' : color)
-      el.setAttribute('fill-opacity', 1)
-      for (let i = 0; i < 2; i++) { const c = um.finishUndoableChange(); if (!c.isEmpty()) sc().addCommandToHistory(c) }
-      gestor.avisar('Relleno aplicado. Clic en otra figura, o Esc para salir.')
+      const tinta = color === 'none' ? '#dc3839' : color
+      const el = figuraEn(x, y)
+      if (el) {
+        const um = sc().undoMgr
+        um.beginUndoableChange('fill', [el]); um.beginUndoableChange('fill-opacity', [el])
+        el.setAttribute('fill', tinta)
+        el.setAttribute('fill-opacity', 1)
+        for (let i = 0; i < 2; i++) { const c = um.finishUndoableChange(); if (!c.isEmpty()) sc().addCommandToHistory(c) }
+        gestor.avisar('Figura rellenada. Clic en otra zona, o Esc para salir.')
+        return
+      }
+      let zona = null
+      try { zona = zonaDelimitada(x, y) } catch (err) { console.error('Bote de pintura:', err) }
+      if (!zona) { gestor.avisar('Ahí hay un trazo o no se pudo calcular la zona. Haz clic dentro del área a rellenar.'); return }
+      if (zona.abierta) { gestor.avisar('Esa zona no está cerrada por líneas: el color se escaparía por toda la página.'); return }
+      const relleno = sc().addSVGElementsFromJson({
+        element: 'path',
+        attr: { d: zona.d, id: sc().getNextId(), class: 'rg_relleno', fill: tinta, 'fill-rule': 'evenodd', stroke: 'none' }
+      })
+      // detrás de las líneas que delimitan la zona, dentro de su capa
+      const capa = relleno.parentNode
+      const titulo = capa.querySelector(':scope > title')
+      capa.insertBefore(relleno, titulo ? titulo.nextSibling : capa.firstChild)
+      sc().clearSelection(); sc().addToSelection([relleno])
+      gestor.avisar(`Zona rellenada (${Math.round(zona.area)} u²). Clic en otra zona, o Esc para salir.`)
     }
   }))
 }
@@ -718,6 +871,13 @@ function montarFormas (editor) {
       panel.querySelector('.rg_formas_rejilla').textContent = 'No se pudo leer la biblioteca de formas.'
       console.error('Biblioteca de formas:', err)
     }
+  }
+
+  // la galería original queda escondida del todo: se abría en una capa fija
+  // bajo la banda y, si asomaba, cortaba el listado sin barra de desplazamiento
+  const sombra = explorador.shadowRoot
+  if (sombra) {
+    for (const viejo of sombra.querySelectorAll('.menu, .image-lib')) viejo.style.display = 'none'
   }
 
   // el clic se atiende aquí y no llega al desplegable oculto de SVG-Edit

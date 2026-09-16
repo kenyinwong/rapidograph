@@ -308,12 +308,13 @@ function montarMedir (editor, herramientas, guias, iman) {
   for (const tipo of ['mousedown', 'mousemove', 'mouseup', 'click', 'pointerdown', 'pointerup']) {
     zona.addEventListener(tipo, (e) => {
       if (!activo) return
-      if (tipo === 'click' || tipo === 'pointerdown' || tipo === 'pointerup') { e.preventDefault(); e.stopPropagation(); return }
+      if (tipo === 'pointerdown' || tipo === 'pointerup') { e.stopPropagation(); return }
+      if (tipo === 'click') { e.preventDefault(); e.stopPropagation(); return }
       manejar(e)
     }, true)
   }
 
-  const boton = botonHerramienta(herramientas, 'medir-oscuro',
+  const boton = botonHerramienta(herramientas, 'regla-oscuro',
     'Medir: arrastra entre dos puntos; la escala se define en el panel de guías')
   function aplicar (encendido) {
     activo = encendido
@@ -403,7 +404,8 @@ function montarEmpujar (editor, herramientas) {
   for (const tipo of ['mousedown', 'mousemove', 'mouseup', 'click', 'pointerdown', 'pointerup']) {
     zona.addEventListener(tipo, (e) => {
       if (!activo) return
-      if (tipo === 'click' || tipo === 'pointerdown' || tipo === 'pointerup') { e.preventDefault(); e.stopPropagation(); return }
+      if (tipo === 'pointerdown' || tipo === 'pointerup') { e.stopPropagation(); return }
+      if (tipo === 'click') { e.preventDefault(); e.stopPropagation(); return }
       manejar(e)
     }, true)
   }
@@ -467,7 +469,7 @@ function montarVarita (editor, herramientas) {
         const d = Math.abs((by - ay) * x - (bx - ax) * y + bx * ay - by * ax) / largo
         maxima = Math.max(maxima, d)
       }
-      if (maxima <= Math.max(4, largo * 0.045)) {
+      if (maxima <= Math.max(6, largo * 0.07)) {
         return { element: 'line', attr: { x1: ax, y1: ay, x2: bx, y2: by } }
       }
       return null
@@ -479,7 +481,7 @@ function montarVarita (editor, herramientas) {
     const radios = puntos.map(([x, y]) => Math.hypot(x - cx, y - cy))
     const rMedio = radios.reduce((s, r) => s + r, 0) / radios.length
     const desvio = Math.sqrt(radios.reduce((s, r) => s + (r - rMedio) ** 2, 0) / radios.length)
-    if (rMedio > 6 && desvio / rMedio < 0.13) {
+    if (rMedio > 6 && desvio / rMedio < 0.17) {
       return { element: 'circle', attr: { cx, cy, r: rMedio } }
     }
 
@@ -491,12 +493,9 @@ function montarVarita (editor, herramientas) {
     if (w < 10 || h < 10) return null
 
     // ¿rectángulo? todos los puntos pegados al perímetro de la caja
-    const tolRect = Math.max(5, Math.hypot(w, h) * 0.06)
-    const alPerimetro = puntos.every(([x, y]) => {
-      const dBorde = Math.min(x - x0, x1 - x, y - y0, y1 - y)
-      return dBorde <= tolRect
-    })
-    if (alPerimetro) {
+    const tolRect = Math.max(6, Math.hypot(w, h) * 0.09)
+    const pegados = puntos.filter(([x, y]) => Math.min(x - x0, x1 - x, y - y0, y1 - y) <= tolRect).length
+    if (pegados >= puntos.length * 0.9) {
       return { element: 'rect', attr: { x: x0, y: y0, width: w, height: h } }
     }
 
@@ -534,14 +533,35 @@ function montarVarita (editor, herramientas) {
   })
 
   const boton = botonHerramienta(herramientas, 'varita-oscuro',
-    'Varita: lo dibujado a mano alzada se convierte en línea, rectángulo, círculo o elipse')
-  const aplicar = (encendido) => {
+    'Varita: lo que dibujes con el Lápiz se convierte en línea, rectángulo, círculo o elipse')
+  const aviso = document.createElement('div')
+  aviso.id = 'rg_aviso_varita'
+  aviso.className = 'rg_aviso'
+  aviso.hidden = true
+  editor.append(aviso)
+  let temporizador = null
+  const aplicar = (encendido, avisarlo) => {
     activo = encendido
     boton.classList.toggle('rg_activa', encendido)
+    boton.setAttribute('aria-pressed', String(encendido))
     try { localStorage.setItem(CLAVE_VARITA, encendido ? '1' : '0') } catch { /* sin memoria */ }
+    if (avisarlo) {
+      aviso.textContent = encendido
+        ? 'Varita encendida: dibuja con el Lápiz y el trazo se convertirá en línea, círculo, rectángulo o elipse si se parece.'
+        : 'Varita apagada.'
+      aviso.hidden = false
+      clearTimeout(temporizador)
+      temporizador = setTimeout(() => { aviso.hidden = true }, 5000)
+    }
+    // la varita trabaja sobre el lápiz: al encenderla se deja elegido
+    if (encendido && avisarlo) {
+      const lapiz = editor.querySelector('#tool_fhpath')
+      const div = lapiz && lapiz.shadowRoot && lapiz.shadowRoot.querySelector('div')
+      if (div) div.click()
+    }
   }
-  boton.addEventListener('click', () => aplicar(!activo))
-  aplicar(activo)
+  boton.addEventListener('click', () => aplicar(!activo, true))
+  aplicar(activo, false)
 }
 
 /* ---------------------------------------------------------------- montaje */
