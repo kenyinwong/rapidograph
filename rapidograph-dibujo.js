@@ -96,7 +96,7 @@ function crearGestor (editor) {
   aviso.hidden = true
   editor.append(aviso)
 
-  let actual = null   // { nombre, boton, alClic, alMover, alDoble, salir }
+  let actual = null   // { nombre, boton, alClic, alMover, alDoble, alPresionar, alSoltar, salir }
 
   const avisar = (texto) => { aviso.textContent = texto || ''; aviso.hidden = !texto }
 
@@ -112,15 +112,28 @@ function crearGestor (editor) {
     const mismo = actual && actual.nombre === modo.nombre
     salir()
     if (mismo) return
+    // apaga los modos propios de otros módulos (juntar, extender, redondear…)
+    document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'dibujo' } }))
     actual = modo
     modo.boton.classList.add('rg_activa')
     sc().setMode('select'); sc().clearSelection()
     avisar(modo.inicio)
   }
+  document.addEventListener('rg:modo', (e) => { if (e.detail.origen !== 'dibujo' && actual) salir() })
 
-  for (const tipo of ['pointerdown', 'pointerup', 'mousedown', 'mouseup']) {
+  for (const tipo of ['pointerdown', 'pointerup']) {
     zona.addEventListener(tipo, (e) => { if (actual) { e.preventDefault(); e.stopPropagation() } }, true)
   }
+  zona.addEventListener('mousedown', (e) => {
+    if (!actual) return
+    e.preventDefault(); e.stopPropagation()
+    if (actual.alPresionar) actual.alPresionar(e)
+  }, true)
+  zona.addEventListener('mouseup', (e) => {
+    if (!actual) return
+    e.preventDefault(); e.stopPropagation()
+    if (actual.alSoltar) actual.alSoltar(e)
+  }, true)
   zona.addEventListener('click', (e) => {
     if (!actual) return
     e.preventDefault(); e.stopPropagation()
@@ -413,6 +426,307 @@ function montarArco (editor, herramientas, gestor, previa, iman) {
   }))
 }
 
+/* ------------------------------------------------------- arco por centro */
+
+/**
+ * Arco radial: clic en el centro, clic en el punto inicial (fija el radio) y
+ * el cursor barre el ángulo hasta el punto final; el tercer clic confirma.
+ */
+function montarArcoCentro (editor, herramientas, gestor, previa, iman) {
+  let centro = null; let inicio = null
+  let barrido = 0            // ángulo acumulado desde el inicio, con signo
+  let anguloPrevio = null
+
+  const punto = (e) => {
+    const p = pagina(editor)
+    let [x, y] = aDocumento(p, e.clientX, e.clientY)
+    const n = iman.imantar(x, y, p.zoom)
+    if (n) { x = n.x; y = n.y }
+    return [redondear(x), redondear(y)]
+  }
+  const anguloDe = (q) => Math.atan2(q[1] - centro[1], q[0] - centro[0])
+  const radio = () => Math.hypot(inicio[0] - centro[0], inicio[1] - centro[1])
+
+  /** Acumula el giro del cursor para permitir arcos de más de 180°. */
+  function seguir (cursor) {
+    const a = anguloDe(cursor)
+    if (anguloPrevio === null) { anguloPrevio = a; barrido = 0; return }
+    let delta = a - anguloPrevio
+    if (delta > Math.PI) delta -= 2 * Math.PI
+    if (delta < -Math.PI) delta += 2 * Math.PI
+    barrido += delta
+    anguloPrevio = a
+    // el arco no da más de una vuelta
+    barrido = Math.max(-2 * Math.PI + 0.01, Math.min(2 * Math.PI - 0.01, barrido))
+  }
+
+  function finDelArco () {
+    const r = radio()
+    const a = anguloDe(inicio) + barrido
+    return [redondear(centro[0] + r * Math.cos(a)), redondear(centro[1] + r * Math.sin(a))]
+  }
+
+  const trazadoArco = () => {
+    const r = redondear(radio())
+    const fin = finDelArco()
+    const grande = Math.abs(barrido) > Math.PI ? 1 : 0
+    const sentido = barrido > 0 ? 1 : 0
+    return `M ${inicio[0]} ${inicio[1]} A ${r} ${r} 0 ${grande} ${sentido} ${fin[0]} ${fin[1]}`
+  }
+
+  function pintar (cursor) {
+    const p = pagina(editor)
+    if (!p || !centro) return
+    const ctx = previa.contexto(p)
+    ctx.fillStyle = '#dc3839'
+    ctx.beginPath(); ctx.arc(centro[0], centro[1], 3 / p.zoom, 0, Math.PI * 2); ctx.fill()
+    ctx.setLineDash([4 / p.zoom, 3 / p.zoom])
+    if (!inicio) {
+      ctx.beginPath(); ctx.moveTo(centro[0], centro[1]); ctx.lineTo(cursor[0], cursor[1]); ctx.stroke()
+      gestor.avisar(`Arco por centro: radio ${redondear(Math.hypot(cursor[0] - centro[0], cursor[1] - centro[1]))} u · clic para fijar el inicio`)
+      ctx.setLineDash([])
+      return
+    }
+    const fin = finDelArco()
+    ctx.beginPath(); ctx.moveTo(centro[0], centro[1]); ctx.lineTo(inicio[0], inicio[1]); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(centro[0], centro[1]); ctx.lineTo(fin[0], fin[1]); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.lineWidth = 2 / p.zoom
+    ctx.stroke(new Path2D(trazadoArco()))
+    gestor.avisar(`Arco por centro: radio ${redondear(radio())} u · ${Math.round(Math.abs(barrido) * 180 / Math.PI)}° · clic para confirmar · Esc cancela`)
+  }
+
+  const boton = botonHerramienta(herramientas, 'arco-centro-oscuro',
+    'Arco por centro: clic en el centro, clic en el inicio y el cursor barre el ángulo')
+  boton.addEventListener('click', () => gestor.activar({
+    nombre: 'arco_centro',
+    boton,
+    inicio: 'Arco por centro: clic en el centro del arco (Esc para salir)',
+    alClic: (e) => {
+      const q = punto(e)
+      if (!centro) { centro = q; pintar(q); return }
+      if (!inicio) {
+        if (Math.hypot(q[0] - centro[0], q[1] - centro[1]) < 1) { gestor.avisar('El inicio debe estar separado del centro.'); return }
+        inicio = q; anguloPrevio = null; barrido = 0; pintar(q); return
+      }
+      if (Math.abs(barrido) < 0.01) { gestor.avisar('Mueve el cursor para abrir el arco antes de confirmar.'); return }
+      const nuevo = sc().addSVGElementsFromJson({ element: 'path', attr: { d: trazadoArco(), id: sc().getNextId(), ...estiloActual() } })
+      sc().clearSelection(); sc().addToSelection([nuevo])
+      centro = inicio = null; barrido = 0; anguloPrevio = null
+      previa.ocultar()
+      gestor.avisar('Arco creado. Clic para empezar otro, o Esc para salir.')
+    },
+    alMover: (e) => {
+      if (!centro) return
+      const q = punto(e)
+      if (inicio) seguir(q)
+      pintar(q)
+    },
+    salir: () => { centro = inicio = null; barrido = 0; anguloPrevio = null; previa.ocultar() }
+  }))
+}
+
+/* ------------------------------------------------------ pincel de boceto */
+
+/**
+ * Pincel de boceto: trazo a mano alzada que se dibuja con varias pasadas
+ * ligeramente desviadas y translúcidas, como un lápiz de bosquejo. Cada trazo
+ * queda como un grupo de trazados, para moverlo o borrarlo entero.
+ */
+function montarBoceto (editor, herramientas, gestor, previa) {
+  let puntos = []
+  let presionado = false
+
+  const punto = (e) => { const p = pagina(editor); const [x, y] = aDocumento(p, e.clientX, e.clientY); return [x, y] }
+
+  function pintar () {
+    const p = pagina(editor)
+    if (!p || puntos.length < 2) return
+    const ctx = previa.contexto(p)
+    const estilo = estiloActual()
+    ctx.strokeStyle = estilo.stroke
+    ctx.lineWidth = Number(estilo['stroke-width']) || 2
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    ctx.beginPath(); ctx.moveTo(puntos[0][0], puntos[0][1])
+    for (const q of puntos.slice(1)) ctx.lineTo(q[0], q[1])
+    ctx.stroke()
+  }
+
+  /** Suaviza con media móvil y devuelve un trazado con curvas cuadráticas. */
+  function trazado (pts, desvio) {
+    const s = pts.map((q, i) => {
+      const a = pts[Math.max(0, i - 1)]; const b = pts[Math.min(pts.length - 1, i + 1)]
+      return [(a[0] + q[0] + b[0]) / 3 + (Math.random() - 0.5) * desvio, (a[1] + q[1] + b[1]) / 3 + (Math.random() - 0.5) * desvio]
+    })
+    let d = `M ${redondear(s[0][0])} ${redondear(s[0][1])}`
+    for (let i = 1; i < s.length - 1; i++) {
+      const mx = (s[i][0] + s[i + 1][0]) / 2; const my = (s[i][1] + s[i + 1][1]) / 2
+      d += ` Q ${redondear(s[i][0])} ${redondear(s[i][1])} ${redondear(mx)} ${redondear(my)}`
+    }
+    const u = s[s.length - 1]
+    d += ` L ${redondear(u[0])} ${redondear(u[1])}`
+    return d
+  }
+
+  function terminar () {
+    presionado = false
+    previa.ocultar()
+    if (puntos.length < 3) { puntos = []; return }
+    const estilo = estiloActual()
+    const ancho = Number(estilo['stroke-width']) || 2
+    const pasadas = [
+      { desvio: 0, ancho, opacidad: 0.9 },
+      { desvio: ancho * 0.9 + 1.5, ancho: ancho * 0.8, opacidad: 0.5 },
+      { desvio: ancho * 1.4 + 2, ancho: ancho * 0.6, opacidad: 0.35 }
+    ]
+    const grupo = sc().addSVGElementsFromJson({
+      element: 'g',
+      attr: { id: sc().getNextId(), class: 'rg_boceto' },
+      children: pasadas.map(pa => ({
+        element: 'path',
+        attr: {
+          d: trazado(puntos, pa.desvio),
+          id: sc().getNextId(),
+          ...estilo,
+          'stroke-width': redondear(pa.ancho),
+          'stroke-opacity': pa.opacidad * (Number(estilo['stroke-opacity']) || 1),
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round'
+        }
+      }))
+    })
+    sc().clearSelection(); sc().addToSelection([grupo])
+    puntos = []
+  }
+
+  const boton = botonHerramienta(herramientas, 'boceto-oscuro',
+    'Pincel de boceto: trazo a mano alzada con aspecto de bosquejo a lápiz')
+  boton.addEventListener('click', () => gestor.activar({
+    nombre: 'boceto',
+    boton,
+    inicio: 'Pincel de boceto: dibuja a mano alzada (Esc para salir)',
+    alPresionar: (e) => { presionado = true; puntos = [punto(e)] },
+    alMover: (e) => {
+      if (!presionado) return
+      const q = punto(e); const u = puntos[puntos.length - 1]
+      if (Math.hypot(q[0] - u[0], q[1] - u[1]) >= 1.5) { puntos.push(q); pintar() }
+    },
+    alSoltar: () => { if (presionado) terminar() },
+    salir: () => { presionado = false; puntos = []; previa.ocultar() }
+  }))
+}
+
+/* --------------------------------------------------- biblioteca de formas */
+
+/**
+ * Selector de formas propio. El de SVG-Edit abre su galería en una capa fija
+ * que en esta interfaz queda debajo de la banda y del panel flotante; aquí se
+ * lee la misma biblioteca (extensions/ext-shapes/shapelib) y se muestra en un
+ * panel visible. Elegir una forma deja el editor en modo "shapelib": luego se
+ * arrastra en el lienzo para dibujarla, igual que siempre.
+ */
+function montarFormas (editor) {
+  const explorador = editor.querySelector('#tool_shapelib')
+  if (!explorador) return
+  const RUTA = './extensions/ext-shapes/shapelib/'
+  const cache = new Map()
+  let panel = null
+  let categoria = 'basic'
+
+  async function categorias () {
+    if (!cache.has('__indice')) {
+      const r = await fetch(RUTA + 'index.json')
+      cache.set('__indice', (await r.json()).lib)
+    }
+    return cache.get('__indice')
+  }
+
+  async function formas (nombre) {
+    if (!cache.has(nombre)) {
+      const r = await fetch(RUTA + nombre + '.json')
+      cache.set(nombre, await r.json())
+    }
+    return cache.get(nombre)
+  }
+
+  const miniatura = (biblioteca, d) => {
+    const tam = biblioteca.size ?? 300
+    const margen = tam * 0.05
+    const relleno = biblioteca.fill ? '#3d3832' : 'none'
+    const grosor = biblioteca.fill ? 0 : tam / 30
+    return `<svg viewBox="${-margen} ${-margen} ${tam + margen * 2} ${tam + margen * 2}" width="34" height="34" aria-hidden="true">
+      <path fill="${relleno}" stroke="#3d3832" stroke-width="${grosor}" d="${d}"></path></svg>`
+  }
+
+  async function llenar () {
+    const lista = await categorias()
+    const selector = panel.querySelector('select')
+    selector.innerHTML = lista.map(n => `<option value="${n}">${n.replace(/_/g, ' ')}</option>`).join('')
+    selector.value = categoria
+    const biblioteca = await formas(categoria)
+    const rejilla = panel.querySelector('.rg_formas_rejilla')
+    rejilla.innerHTML = ''
+    for (const [nombre, d] of Object.entries(biblioteca.data)) {
+      const b = document.createElement('button')
+      b.type = 'button'; b.className = 'rg_forma'; b.title = nombre.replace(/_/g, ' ')
+      b.innerHTML = miniatura(biblioteca, d)
+      b.addEventListener('click', () => elegir(d, biblioteca))
+      rejilla.append(b)
+    }
+  }
+
+  function elegir (d, biblioteca) {
+    // la extensión lee el trazado elegido de este atributo al arrastrar
+    explorador.dataset.draw = d
+    explorador.setAttribute('pressed', 'pressed')
+    const icono = explorador.shadowRoot && explorador.shadowRoot.querySelector('.button-icon')
+    if (icono) {
+      const tam = biblioteca.size ?? 300; const m = tam * 0.05
+      icono.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-m} ${-m} ${tam + m * 2} ${tam + m * 2}"><path fill="${biblioteca.fill ? '#3d3832' : 'none'}" stroke="#3d3832" stroke-width="${biblioteca.fill ? 0 : tam / 30}" d="${d}"/></svg>`)
+    }
+    sc().setMode('shapelib')
+    cerrar()
+  }
+
+  function cerrar () { if (panel) panel.hidden = true }
+
+  async function abrir () {
+    if (!panel) {
+      panel = document.createElement('div')
+      panel.id = 'rg_panel_formas'
+      panel.innerHTML = `
+        <div class="rg_formas_cabecera">
+          <strong>Formas</strong>
+          <select aria-label="Categoría"></select>
+        </div>
+        <div class="rg_formas_rejilla" role="list"></div>
+        <p class="rg_formas_pie">Elige una forma y luego arrastra en el lienzo para dibujarla.</p>`
+      editor.append(panel)
+      panel.querySelector('select').addEventListener('change', async (e) => { categoria = e.target.value; await llenar() })
+      document.addEventListener('pointerdown', (e) => {
+        if (!panel.hidden && !panel.contains(e.target) && !explorador.contains(e.target)) cerrar()
+      })
+    }
+    // al costado del panel flotante completo (el botón está en una de sus columnas)
+    const paleta = editor.querySelector('#rg_paleta') || explorador
+    const r = paleta.getBoundingClientRect(); const rb = explorador.getBoundingClientRect(); const e = editor.getBoundingClientRect()
+    panel.style.left = Math.min(r.right - e.left + 14, e.width - 300) + 'px'
+    panel.style.top = Math.min(Math.max(rb.top - e.top - 40, 8), e.height - 380) + 'px'
+    panel.hidden = false
+    try { await llenar() } catch (err) {
+      panel.querySelector('.rg_formas_rejilla').textContent = 'No se pudo leer la biblioteca de formas.'
+      console.error('Biblioteca de formas:', err)
+    }
+  }
+
+  // el clic se atiende aquí y no llega al desplegable oculto de SVG-Edit
+  explorador.addEventListener('click', (e) => {
+    e.stopImmediatePropagation(); e.preventDefault()
+    if (panel && !panel.hidden) cerrar(); else abrir()
+  }, true)
+}
+
 /* --------------------------------------------------------------- pinceles */
 
 const PINCELES = [
@@ -430,7 +744,7 @@ const MODOS_DE_TRAZO = [
   'fhpath', 'line', 'path', 'rect', 'square', 'fhrect', 'ellipse', 'circle',
   'fhellipse', 'star', 'polygon'
 ]
-const MODOS_PROPIOS_DE_TRAZO = ['polilinea', 'arco']
+const MODOS_PROPIOS_DE_TRAZO = ['polilinea', 'arco', 'arco_centro', 'boceto']
 
 /**
  * Franja de pinceles en la barra superior. Solo aparece mientras hay una
@@ -498,6 +812,9 @@ export function montarDibujo (editor, iman) {
   montarPolilinea(editor, herramientas, gestor, previa, iman)
   montarParalela(editor, herramientas, gestor)
   montarArco(editor, herramientas, gestor, previa, iman)
+  montarArcoCentro(editor, herramientas, gestor, previa, iman)
   montarBote(editor, herramientas, gestor)
+  montarBoceto(editor, herramientas, gestor, previa)
+  montarFormas(editor)
   montarPinceles(editor, gestor)
 }

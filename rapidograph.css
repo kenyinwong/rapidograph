@@ -366,9 +366,21 @@
 .rg_herramienta:active { transform: var(--se-pulsacion, none); }
 .rg_herramienta img { display: block; }
 
-/* 11 · todo lo de la barra superior alineado al centro vertical */
-#tools_top { align-items: center; align-content: center; }
-#tools_top > * { align-items: center; }
+/* 11 · todo lo de la barra superior alineado al centro vertical, en UNA fila
+   de altura fija. Si la barra saltaba a dos filas al seleccionar una línea
+   (paneles de contexto), el lienzo bajaba 28 px bajo el cursor y el imán y
+   los trazos parecían fallar. Lo que no quepa se desplaza dentro de la barra. */
+#tools_top {
+  align-items: center;
+  align-content: center;
+  flex-wrap: nowrap;
+  height: var(--top-toolbar-min-height);
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+#tools_top > * { align-items: center; flex: 0 0 auto; }
 
 /* 12 · zona de sesión al doble */
 #rg_sesion { zoom: 2; }
@@ -493,7 +505,8 @@
   pointer-events: none;
 }
 
-#rg_campo_paralela {
+#rg_campo_paralela,
+.rg_campo_flotante {
   position: absolute;
   left: 50%;
   top: calc(var(--top-toolbar-min-height) + 84px);
@@ -508,7 +521,8 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, .15);
 }
 
-#rg_campo_paralela input {
+#rg_campo_paralela input,
+.rg_campo_flotante input {
   width: 64px;
   font: inherit;
   color: var(--text-color);
@@ -524,6 +538,8 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 2px;
+  flex: 0 1 auto;     /* es lo primero que cede sitio si la barra va justa */
+  min-width: 120px;
   margin-left: 12px;
   padding: 3px 6px;
   background: #ffffff;
@@ -570,4 +586,86 @@
 .rg_pincel:focus-visible {
   outline: 2px solid var(--rg-tinta);
   outline-offset: 1px;
+}
+
+
+/* --- biblioteca de formas propia --- */
+#rg_panel_formas {
+  position: absolute;
+  z-index: 12;
+  width: 292px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--se-sombra, 0 8px 24px rgba(48, 42, 82, .2));
+  padding: 10px 12px 8px;
+  color: var(--text-color);
+}
+
+.rg_formas_cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.rg_formas_cabecera select {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-color);
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 6px;
+  text-transform: capitalize;
+}
+
+.rg_formas_rejilla {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.rg_forma {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.rg_forma:hover { background: #ececf0; border-color: var(--border-color); }
+.rg_forma:focus-visible { outline: 2px solid var(--rg-tinta); outline-offset: 1px; }
+.rg_forma svg { display: block; }
+
+.rg_formas_pie {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: #75757d;
+}
+
+/* aviso breve del imán, bajo el de modo */
+#rg_aviso_iman {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--top-toolbar-min-height) + 10px);
+  transform: translateX(-50%);
+  z-index: 12;
+  background: #302a52;
+  color: #ffffff;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 7px 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  pointer-events: none;
+  max-width: 70%;
+  text-align: center;
 }

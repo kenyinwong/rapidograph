@@ -84,6 +84,23 @@ const anguloANormal = (grados) => {
   return [-Math.sin(r), Math.cos(r)]
 }
 
+/** Proyección sobre la línea de cuadrícula más cercana, de cualquier familia. */
+function lineaCercana (px, py, config) {
+  const familias = ({ ortogonal: [0, 90], isometrica: [90, 30, 150], triangular: [0, 60, 120] })[config.tipo] || [0, 90]
+  const d = config.distancia
+  let mejor = null
+  for (const angulo of familias) {
+    const n = anguloANormal(angulo)
+    const s = px * n[0] + py * n[1]
+    const objetivo = Math.round(s / d) * d
+    const dist = Math.abs(s - objetivo)
+    if (!mejor || dist < mejor.dist) {
+      mejor = { x: px + (objetivo - s) * n[0], y: py + (objetivo - s) * n[1], dist }
+    }
+  }
+  return mejor
+}
+
 function extremoCercano (px, py) {
   let mejor = null
   const mirar = (x, y) => {
@@ -113,19 +130,43 @@ function montarIman (editor, herramientas, guias) {
   // modos de dibujo en los que el cursor se imanta
   const MODOS = ['line', 'rect', 'square', 'ellipse', 'circle', 'path', 'polygon', 'star', 'text', 'image']
 
-  /** Punto imantado en unidades del documento, o null si no hay nada cerca. */
+  /**
+   * Punto imantado en unidades del documento, o null si no hay nada cerca.
+   * Prioridad: extremos de líneas y nudos de la cuadrícula; si ninguno queda a
+   * mano, el punto se apoya sobre la línea de cuadrícula más cercana.
+   */
   function imantar (px, py, zoom) {
-    const tolerancia = 10 / zoom
-    const candidatos = []
+    const tolerancia = 14 / zoom
+    const puntos = []
     const config = guias.obtenerConfig()
-    if (config.activas && config.distancia > 0) {
+    const conCuadricula = config.activas && config.distancia > 0
+    if (conCuadricula) {
       const n = nudoCercano(px, py, config)
-      if (n) candidatos.push(n)
+      if (n) puntos.push(n)
     }
     const e = extremoCercano(px, py)
-    if (e) candidatos.push(e)
-    candidatos.sort((a, b) => a.dist - b.dist)
-    return candidatos[0] && candidatos[0].dist <= tolerancia ? candidatos[0] : null
+    if (e) puntos.push(e)
+    puntos.sort((a, b) => a.dist - b.dist)
+    if (puntos[0] && puntos[0].dist <= tolerancia) return puntos[0]
+    if (conCuadricula) {
+      const l = lineaCercana(px, py, config)
+      if (l && l.dist <= tolerancia) return l
+    }
+    return null
+  }
+
+  // aviso breve al encender el imán sin cuadrícula
+  const aviso = document.createElement('div')
+  aviso.id = 'rg_aviso_iman'
+  aviso.className = 'rg_aviso'
+  aviso.hidden = true
+  editor.append(aviso)
+  let temporizador = null
+  function avisar (texto) {
+    aviso.textContent = texto
+    aviso.hidden = false
+    clearTimeout(temporizador)
+    temporizador = setTimeout(() => { aviso.hidden = true }, 5000)
   }
 
   function ajustador (e) {
@@ -164,15 +205,21 @@ function montarIman (editor, herramientas, guias) {
     zona.addEventListener(tipo, ajustador, true)
   }
 
-  const boton = botonHerramienta(herramientas, 'iman-oscuro', 'Imán: el dibujo se ajusta a la cuadrícula y a los extremos de otras líneas')
-  const aplicar = (encendido) => {
+  const boton = botonHerramienta(herramientas, 'iman-oscuro', 'Imán: el dibujo se ajusta a la cuadrícula de guías y a los extremos de otras líneas')
+  const aplicar = (encendido, avisarlo) => {
     activo = encendido
     boton.classList.toggle('rg_activa', encendido)
+    boton.setAttribute('aria-pressed', String(encendido))
     if (!encendido) punto.hidden = true
     try { localStorage.setItem(CLAVE_SNAP, encendido ? '1' : '0') } catch { /* sin memoria */ }
+    if (encendido && avisarlo) {
+      avisar(guias.obtenerConfig().activas
+        ? 'Imán encendido: el trazo se pega a la cuadrícula y a los extremos de otras líneas.'
+        : 'Imán encendido. Sin guías visibles solo se pega a extremos de líneas: enciéndelas con el botón de la regla para usar la cuadrícula.')
+    }
   }
-  boton.addEventListener('click', () => aplicar(!activo))
-  aplicar(activo)
+  boton.addEventListener('click', () => aplicar(!activo, true))
+  aplicar(activo, false)
 
   return { imantar: (x, y, zoom) => (activo ? imantar(x, y, zoom) : null) }
 }

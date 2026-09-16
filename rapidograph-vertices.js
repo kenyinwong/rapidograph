@@ -167,8 +167,9 @@ function montarExtremos (editor) {
 
 function montarUnirExtender (editor, herramientas) {
   const sc = () => window.svgEditor.svgCanvas
-  let modo = null            // 'recortar' | 'extender' | null
+  let modo = null            // 'recortar' | 'extender' | 'redondear' | null
   let primera = null         // primera línea elegida (y punto del clic)
+  let radio = 20             // radio del redondeo, en unidades del documento
   const botones = {}
 
   const aviso = document.createElement('div')
@@ -176,9 +177,39 @@ function montarUnirExtender (editor, herramientas) {
   aviso.hidden = true
   editor.append(aviso)
 
+  // campo de radio para redondear, bajo el aviso
+  const campoRadio = document.createElement('div')
+  campoRadio.id = 'rg_campo_radio'
+  campoRadio.className = 'rg_campo_flotante'
+  campoRadio.hidden = true
+  campoRadio.innerHTML = 'Radio <input type="number" min="0.1" step="any" value="20"> u'
+  editor.append(campoRadio)
+  campoRadio.querySelector('input').addEventListener('input', (e) => {
+    radio = Math.max(0.1, Number(e.target.value) || 20)
+  })
+
   function avisar (texto) {
     aviso.textContent = texto || ''
     aviso.hidden = !texto
+  }
+
+  /** Cambia atributos de un elemento dejando cada uno en el historial de deshacer. */
+  function cambiar (el, cambios) {
+    const um = sc().undoMgr
+    const nombres = Object.keys(cambios)
+    for (const a of nombres) um.beginUndoableChange(a, [el])
+    for (const a of nombres) el.setAttribute(a, Math.round(cambios[a] * 100) / 100)
+    for (let i = 0; i < nombres.length; i++) {
+      const c = um.finishUndoableChange()
+      if (!c.isEmpty()) sc().addCommandToHistory(c)
+    }
+  }
+
+  /** Atributos del extremo de la línea más cercano al punto. */
+  const extremoCercanoA = (s, punto) => {
+    const dInicio = (s[0] - punto[0]) ** 2 + (s[1] - punto[1]) ** 2
+    const dFin = (s[2] - punto[0]) ** 2 + (s[3] - punto[1]) ** 2
+    return dInicio <= dFin ? ['x1', 'y1'] : ['x2', 'y2']
   }
 
   function marcar (el, encendido) {
@@ -192,50 +223,101 @@ function montarUnirExtender (editor, herramientas) {
     }
   }
 
+  const INICIOS = {
+    recortar: 'Juntar líneas: elige la primera línea (Esc para salir)',
+    extender: 'Extender: haz clic en la línea cerca del extremo que quieres alargar (Esc para salir)',
+    redondear: 'Redondear esquina: elige la primera línea (Esc para salir)'
+  }
+
   function salir () {
     marcar(primera && primera.el, false)
     primera = null
     modo = null
     avisar('')
+    campoRadio.hidden = true
     for (const b of Object.values(botones)) b.classList.remove('rg_activa')
   }
 
   function activar (cual) {
     if (modo === cual) return salir()
     salir()
+    // apaga cualquier modo propio de otros módulos
+    document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'vertices' } }))
     modo = cual
     botones[cual].classList.add('rg_activa')
     sc().setMode('select'); sc().clearSelection()
-    avisar(cual === 'recortar'
-      ? 'Juntar líneas: elige la primera línea (Esc para salir)'
-      : 'Extender: haz clic en la línea cerca del extremo que quieres alargar (Esc para salir)')
+    avisar(INICIOS[cual])
+    if (cual === 'redondear') { campoRadio.hidden = false; campoRadio.querySelector('input').value = radio }
   }
+  document.addEventListener('rg:modo', (e) => { if (e.detail.origen !== 'vertices' && modo) salir() })
 
-  /** Une dos líneas en el vértice donde se encuentran y deja una polilínea. */
+  /**
+   * Junta dos líneas en el vértice donde se encuentran: cada una se alarga o
+   * recorta hasta ese punto. Siguen siendo dos líneas independientes.
+   */
   function recortar (a, b) {
     const sa = segmentoDe(a); const sb = segmentoDe(b)
     const v = interseccion(sa, sb)
     if (!v) { window.alert('Esas líneas son paralelas: no tienen punto de encuentro.'); return salir() }
-    const lejano = (s) => {
-      const d1 = (s[0] - v[0]) ** 2 + (s[1] - v[1]) ** 2
-      const d2 = (s[2] - v[0]) ** 2 + (s[3] - v[1]) ** 2
-      return d1 >= d2 ? [s[0], s[1]] : [s[2], s[3]]
+    marcar(a, false)
+    for (const [el, s] of [[a, sa], [b, sb]]) {
+      const [ax, ay] = extremoCercanoA(s, v)
+      cambiar(el, { [ax]: v[0], [ay]: v[1] })
     }
-    const [ax, ay] = lejano(sa); const [bx, by] = lejano(sb)
-    const r = (n) => Math.round(n * 100) / 100
-    const puntos = `${r(ax)},${r(ay)} ${r(v[0])},${r(v[1])} ${r(bx)},${r(by)}`
-    marcar(a, false)   // antes de copiar el estilo: el resaltado rojo no es suyo
-    const nueva = sc().addSVGElementsFromJson({
-      element: 'polyline',
-      attr: { points: puntos, id: sc().getNextId(), fill: 'none' }
-    })
-    copiarEstilo(a, nueva)
     sc().clearSelection()
     sc().addToSelection([a, b])
-    sc().deleteSelectedElements()
-    sc().clearSelection()
-    sc().addToSelection([nueva])
     salir()
+  }
+
+  /**
+   * Redondea la esquina entre dos líneas con un arco tangente a ambas: las
+   * líneas se recortan hasta los puntos de tangencia y el arco queda como un
+   * trazado aparte, con el estilo de la primera línea.
+   */
+  function redondear (a, b) {
+    const sa = segmentoDe(a); const sb = segmentoDe(b)
+    const v = interseccion(sa, sb)
+    if (!v) { window.alert('Esas líneas son paralelas: no forman esquina.'); return salir() }
+    // dirección de cada línea desde el vértice hacia su extremo lejano
+    const rayo = (s) => {
+      const lejos = extremoCercanoA(s, v)[0] === 'x1' ? [s[2], s[3]] : [s[0], s[1]]
+      const largo = Math.hypot(lejos[0] - v[0], lejos[1] - v[1])
+      return { u: [(lejos[0] - v[0]) / largo, (lejos[1] - v[1]) / largo], largo }
+    }
+    const ra = rayo(sa); const rb = rayo(sb)
+    const coseno = Math.max(-1, Math.min(1, ra.u[0] * rb.u[0] + ra.u[1] * rb.u[1]))
+    const theta = Math.acos(coseno)
+    if (theta < 0.02 || theta > Math.PI - 0.02) { window.alert('Esas líneas están casi alineadas: no hay esquina que redondear.'); return salir() }
+    const t = radio / Math.tan(theta / 2)          // distancia del vértice a cada tangencia
+    if (t > ra.largo || t > rb.largo) {
+      avisar(`Radio ${radio} demasiado grande para estas líneas (máximo ≈ ${Math.floor(Math.min(ra.largo, rb.largo) * Math.tan(theta / 2))}). Cambia el radio y vuelve a elegir.`)
+      marcar(primera.el, false); primera = null
+      return
+    }
+    const t1 = [v[0] + ra.u[0] * t, v[1] + ra.u[1] * t]
+    const t2 = [v[0] + rb.u[0] * t, v[1] + rb.u[1] * t]
+    const bis = [ra.u[0] + rb.u[0], ra.u[1] + rb.u[1]]
+    const bl = Math.hypot(bis[0], bis[1])
+    const dc = radio / Math.sin(theta / 2)
+    const c = [v[0] + bis[0] / bl * dc, v[1] + bis[1] / bl * dc]
+    // sentido del arco: el que gira desde t1 hacia t2 alrededor del centro
+    const cruz = (t1[0] - c[0]) * (t2[1] - c[1]) - (t1[1] - c[1]) * (t2[0] - c[0])
+    const sentido = cruz > 0 ? 1 : 0
+    const r = (n) => Math.round(n * 100) / 100
+
+    marcar(a, false)
+    const ea = extremoCercanoA(sa, v); const eb = extremoCercanoA(sb, v)
+    cambiar(a, { [ea[0]]: t1[0], [ea[1]]: t1[1] })
+    cambiar(b, { [eb[0]]: t2[0], [eb[1]]: t2[1] })
+    const arco = sc().addSVGElementsFromJson({
+      element: 'path',
+      attr: { d: `M ${r(t1[0])} ${r(t1[1])} A ${r(radio)} ${r(radio)} 0 0 ${sentido} ${r(t2[0])} ${r(t2[1])}`, id: sc().getNextId(), fill: 'none' }
+    })
+    copiarEstilo(a, arco)
+    sc().clearSelection()
+    sc().addToSelection([arco])
+    primera = null
+    avisar(`Esquina redondeada con radio ${radio}. Elige otra pareja de líneas, o Esc para salir.`)
   }
 
   /** Alarga (o recorta) el extremo elegido de la línea hasta la otra. */
@@ -269,11 +351,13 @@ function montarUnirExtender (editor, herramientas) {
     if (!primera) {
       primera = { el, clic: p ? aDocumento(p, e.clientX, e.clientY) : [0, 0] }
       marcar(el, true)
-      avisar(modo === 'recortar' ? 'Ahora elige la segunda línea.' : 'Ahora elige la línea hasta la que se extiende.')
+      avisar(modo === 'extender' ? 'Ahora elige la línea hasta la que se extiende.' : 'Ahora elige la segunda línea.')
       return
     }
     if (el === primera.el) { avisar('Esa es la misma línea: elige otra.'); return }
-    modo === 'recortar' ? recortar(primera.el, el) : extender(primera.el, primera.clic, el)
+    if (modo === 'recortar') recortar(primera.el, el)
+    else if (modo === 'redondear') redondear(primera.el, el)
+    else extender(primera.el, primera.clic, el)
   }, true)
 
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modo) salir() }, true)
@@ -291,8 +375,9 @@ function montarUnirExtender (editor, herramientas) {
     return b
   }
 
-  crearBoton('recortar', 'juntar-oscuro', 'Juntar líneas: unir dos líneas en un vértice (queda una polilínea)')
+  crearBoton('recortar', 'juntar-oscuro', 'Juntar líneas: alargar o recortar dos líneas hasta su vértice común (siguen siendo dos líneas)')
   crearBoton('extender', 'extender-oscuro', 'Extender: alargar una línea hasta encontrarse con otra')
+  crearBoton('redondear', 'redondear-oscuro', 'Redondear esquina (fillet): arco tangente entre dos líneas, con radio configurable')
 }
 
 /* ---------------------------------------------------------------- montaje */
