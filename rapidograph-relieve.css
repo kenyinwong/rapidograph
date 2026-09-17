@@ -55,11 +55,11 @@
   --orange-color: var(--nm-acento);
 
   --se-radio: 50%;
-  --se-icono: 13px;
-  --se-icono-relleno: 5.5px;
-  --se-icono-margen: 3.5px;
-  --se-icono-chico: 10px;
-  --se-icono-chico-relleno: 4px;
+  --se-icono: 16px;
+  --se-icono-relleno: 6.5px;
+  --se-icono-margen: 4px;
+  --se-icono-chico: 12px;
+  --se-icono-chico-relleno: 5px;
   --se-relieve: var(--nm-relieve-boton);
   --se-relieve-alto: var(--nm-relieve-boton-alto);
   --se-relieve-hundido: var(--nm-hundido-boton);
@@ -75,7 +75,7 @@
   --se-dialogo-fondo: var(--nm-base);
   --se-dialogo-texto: var(--nm-tinta);
   --se-cuadrito: 20px;
-  --se-desplegable-x: 33px;      /* los desplegables salen a la derecha del círculo */
+  --se-desplegable-x: 40px;      /* los desplegables salen a la derecha del círculo */
   --top-toolbar-min-height: 0px;
   --rg-paleta-der: 210px;        /* lo fija el guion según las columnas de herramientas */
 }
@@ -154,7 +154,7 @@ html, body { background: var(--nm-base); }
   pointer-events: none;
 }
 
-.svg_editor.rg_con_capas #tools_top { right: 286px; }
+.svg_editor.rg_con_capas #tools_top { right: 326px; }
 
 #tools_top > * {
   pointer-events: auto;
@@ -213,9 +213,9 @@ html, body { background: var(--nm-base); }
 .rg_herramienta {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  margin: 3.5px;
+  width: 29px;
+  height: 29px;
+  margin: 4px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -229,8 +229,8 @@ html, body { background: var(--nm-base); }
 .rg_circular img,
 .rg_herramienta img {
   display: block;
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
   transition: transform var(--nm-tiempo) var(--nm-curva), filter var(--nm-tiempo) ease;
 }
 
@@ -317,7 +317,7 @@ html, body { background: var(--nm-base); }
   z-index: 6;
   top: 92px;
   right: 29px;
-  width: 232px;
+  width: 272px;
   max-height: calc(100% - 92px - 130px);
   display: flex;
   flex-direction: column;
@@ -354,16 +354,16 @@ html, body { background: var(--nm-base); }
   height: auto;
   border: 0;
   padding: 0;
-  margin: 0 -2.5px 8px;
+  margin: 0 -2px 8px;
   justify-content: flex-start;
 }
 
-#rg_capas #layerbuttons se-button { --se-icono-margen: 2.5px; }
+#rg_capas #layerbuttons se-button { --se-icono-margen: 2px; }
 
 .rg_capa_btn {
-  width: 18px;
-  height: 18px;
-  margin: 2.5px;
+  width: 22px;
+  height: 22px;
+  margin: 2px;
   display: grid;
   place-items: center;
   border: 0;
@@ -374,7 +374,7 @@ html, body { background: var(--nm-base); }
   transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease;
 }
 
-.rg_capa_btn img { width: 9px; height: 9px; transition: transform var(--nm-tiempo) var(--nm-curva); }
+.rg_capa_btn img { width: 11px; height: 11px; transition: transform var(--nm-tiempo) var(--nm-curva); }
 .rg_capa_btn:hover { background: var(--nm-base); transform: translateY(-1px); box-shadow: var(--nm-relieve-boton); }
 .rg_capa_btn:active { transform: scale(0.95); box-shadow: var(--nm-hundido-suave); }
 .rg_capa_btn:active img { transform: scale(0.84) rotate(-10deg); }
@@ -569,6 +569,11 @@ html, body { background: var(--nm-base); }
 .rg_manija { background: var(--nm-base); border-color: var(--nm-acento); box-shadow: var(--nm-relieve-bajo); border-radius: 50%; }
 .rg_manija:hover { background: #fbe3e3; }
 
+/* el recuadro de transformación solo aparece con su botón encendido */
+/* (la banda elástica de selección múltiple vive en el mismo grupo: no se toca) */
+.svg_editor:not(.rg_transformar) #selectorParentGroup > g[id^="selectorGroup"],
+.svg_editor:not(.rg_transformar) #selectorGripsGroup { display: none; }
+
 /* ------------------------------------------------------------- anotador */
 
 /* el anotador inyecta su hoja después: hace falta más especificidad que la suya */
@@ -578,9 +583,9 @@ body #an_panel { bottom: 152px; right: 29px; }
 /* ------------------------------------------------------ pantallas estrechas */
 
 @media (max-width: 1200px) {
-  :root { --se-icono: 11px; --se-icono-relleno: 5px; --se-icono-margen: 2.5px; --se-desplegable-x: 28px; }
-  .rg_circular, .rg_herramienta { width: 21px; height: 21px; margin: 2.5px; }
-  .rg_circular img, .rg_herramienta img { width: 11px; height: 11px; }
+  :root { --se-icono: 13px; --se-icono-relleno: 6px; --se-icono-margen: 3px; --se-desplegable-x: 34px; }
+  .rg_circular, .rg_herramienta { width: 25px; height: 25px; margin: 3px; }
+  .rg_circular img, .rg_herramienta img { width: 13px; height: 13px; }
   #rg_marca { top: 26px; left: 24px; }
   #rg_marca img { width: 128px; }
   #tools_top { top: 16px; left: max(170px, var(--rg-paleta-der)); right: 176px; gap: 4px 8px; }

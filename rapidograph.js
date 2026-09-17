@@ -484,6 +484,44 @@ function montarRedondeo (editor, herramientas) {
   aplicar(activo)
 }
 
+/* ------------------------------------------------------------ transformar */
+
+/**
+ * El recuadro azul con manijas de escala y giro ya no aparece al seleccionar:
+ * se pide con este botón. Mientras está apagado el objeto se sigue pudiendo
+ * mover y editar por sus extremos; la clase la lee rapidograph-relieve.css.
+ */
+function montarTransformacion (editor, herramientas) {
+  let activo = false
+  const boton = crear('button', { className: 'rg_herramienta', type: 'button' }, herramientas)
+  boton.title = 'Transformación: muestra el recuadro para escalar y girar lo seleccionado'
+  boton.setAttribute('aria-pressed', 'false')
+  const img = crear('img', { src: './marca/acciones/transformar-oscuro.svg', alt: 'Transformación' }, boton)
+  img.width = 30; img.height = 30
+
+  function aplicar (encendido) {
+    activo = encendido
+    boton.setAttribute('aria-pressed', String(encendido))
+    boton.classList.toggle('rg_activa', encendido)
+    editor.classList.toggle('rg_transformar', encendido)
+  }
+
+  boton.addEventListener('click', () => {
+    if (!activo) {
+      document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'transformar' } }))
+      window.svgEditor.svgCanvas.setMode('select')
+      const flecha = editor.querySelector('#tool_select')
+      if (flecha) flecha.click()
+    }
+    aplicar(!activo)
+  })
+  // elegir cualquier otra herramienta lo apaga
+  document.addEventListener('rg:modo', (e) => { if (e.detail.origen !== 'transformar') aplicar(false) })
+  document.addEventListener('click', () => {
+    if (activo) setTimeout(() => { if (activo && window.svgEditor.svgCanvas.getMode() !== 'select') aplicar(false) }, 0)
+  }, true)   // en captura: SVG-Edit detiene la propagación de sus botones
+}
+
 /* ----------------------------------------------- DXF en el diálogo exportar */
 
 /**
@@ -564,6 +602,7 @@ export async function iniciarRapidoGraph () {
   montarFlotantes(editor, accesos)
   const ajustarPaleta = montarPaleta(editor, guias)
   montarRedondeo(editor, editor.querySelector('#tools_left'))
+  montarTransformacion(editor, editor.querySelector('#tools_left'))
   montarVertices(editor)
   const precision = montarPrecision(editor, guias)
   montarDibujo(editor, precision.iman)

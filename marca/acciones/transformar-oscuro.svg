@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- Transformar: recuadro con manijas en las esquinas. -->
+  <rect x="52" y="52" width="152" height="152" stroke="#3d3832" stroke-width="14" stroke-dasharray="22 16" />
+  <g fill="#ffffff" stroke="#3d3832" stroke-width="14">
+    <rect x="32" y="32" width="40" height="40" rx="4" />
+    <rect x="184" y="32" width="40" height="40" rx="4" />
+    <rect x="32" y="184" width="40" height="40" rx="4" />
+    <rect x="184" y="184" width="40" height="40" rx="4" />
+  </g>
+</svg>
