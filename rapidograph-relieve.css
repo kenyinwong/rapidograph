@@ -13,13 +13,16 @@
    =============================================================== */
 
 :root {
-  --nm-base: #e3e7ee;          /* la superficie: lienzo y controles */
-  --nm-luz: #ffffff;
-  --nm-sombra: #b3bbcc;
-  --nm-sombra-honda: #a3adc1;
-  --nm-tinta: #26243d;         /* 12.1:1 sobre la base */
-  --nm-tinta-suave: #4f4d68;   /* 6.5:1 */
-  --nm-acento: #bd2325;        /* activo: 4.9:1 sobre la base */
+  --nm-base: #ffffff;          /* la superficie: lienzo y controles, en blanco */
+  /* Sobre blanco no existe una "sombra de luz" más clara que el fondo: el
+     relieve lo da la sombra gris de abajo a la derecha, y arriba a la izquierda
+     queda un halo gris muy tenue que termina de dibujar el borde del círculo. */
+  --nm-luz: #eef1f6;
+  --nm-sombra: #cbd1de;
+  --nm-sombra-honda: #b9c1d1;
+  --nm-tinta: #26243d;         /* 14.9:1 sobre blanco */
+  --nm-tinta-suave: #4f4d68;   /* 8.1:1 */
+  --nm-acento: #bd2325;        /* 6.1:1 */
   --nm-indigo: #302a52;
 
   --nm-relieve: 5px 5px 11px var(--nm-sombra), -5px -5px 11px var(--nm-luz);
@@ -41,9 +44,9 @@
   --icon-bg-color-hover: var(--nm-base);
   --se-hover: var(--nm-base);
   --text-color: var(--nm-tinta);
-  --border-color: #c9cfdb;
+  --border-color: #d5dae4;
   --canvas-bg-color: var(--nm-base);
-  --input-color: #eef1f6;
+  --input-color: #f4f6fa;
   --link-color: var(--nm-indigo);
   --orange-color: var(--nm-acento);
 
@@ -390,7 +393,7 @@ html, body { background: var(--nm-base); }
 #rg_capas #layerlist tbody { display: table; width: 100%; }
 #rg_capas #layerlist tr.layer { background: transparent; }
 #rg_capas #layerlist tr.layer > td { padding: 6px 8px; color: var(--nm-tinta); }
-#rg_capas #layerlist tr.layer:hover { background: rgba(255, 255, 255, .55); }
+#rg_capas #layerlist tr.layer:hover { background: #f4f6fa; }
 
 #rg_capas #layerlist tr.layersel {
   background: transparent;
@@ -560,7 +563,7 @@ html, body { background: var(--nm-base); }
 
 /* manijas y marcas de precisión, sobre la nueva superficie */
 .rg_manija { background: var(--nm-base); border-color: var(--nm-acento); box-shadow: var(--nm-relieve-bajo); border-radius: 50%; }
-.rg_manija:hover { background: #ffffff; }
+.rg_manija:hover { background: #fbe3e3; }
 
 /* ------------------------------------------------------------- anotador */
 

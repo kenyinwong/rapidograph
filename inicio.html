@@ -10,13 +10,15 @@
     /* Misma superficie en relieve que el editor: un solo tono, y la forma la dan
        una sombra de luz arriba a la izquierda y otra de sombra abajo a la derecha. */
     :root {
-      --nm-base: #e3e7ee;
-      --nm-luz: #ffffff;
-      --nm-sombra: #b3bbcc;
-      --nm-sombra-honda: #a3adc1;
-      --nm-tinta: #26243d;         /* 12.1:1 sobre la base */
-      --nm-tinta-suave: #4f4d68;   /* 6.5:1 */
-      --nm-acento: #bd2325;        /* 4.9:1 */
+      --nm-base: #ffffff;
+      /* sobre blanco el relieve lo da la sombra gris; arriba a la izquierda queda
+         un halo muy tenue que termina de dibujar cada forma */
+      --nm-luz: #eef1f6;
+      --nm-sombra: #cbd1de;
+      --nm-sombra-honda: #b9c1d1;
+      --nm-tinta: #26243d;         /* 14.9:1 sobre blanco */
+      --nm-tinta-suave: #4f4d68;   /* 8.1:1 */
+      --nm-acento: #bd2325;        /* 6.1:1 */
       --nm-indigo: #302a52;
 
       --nm-relieve: 6px 6px 14px var(--nm-sombra), -6px -6px 14px var(--nm-luz);
