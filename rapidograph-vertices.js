@@ -18,7 +18,7 @@
 // La geometría del lienzo es compartida; se importa con la misma marca de
 // versión con que se cargó este archivo para no quedar en la caché del navegador.
 const version = new URL(import.meta.url).search
-const { pagina, aDocumento, aPantalla } = await import('./rapidograph-lienzo.js' + version)
+const { pagina, aDocumento, aPantalla, elegirSeleccion } = await import('./rapidograph-lienzo.js' + version)
 
 /** Intersección de las rectas (infinitas) que contienen a dos segmentos. */
 function interseccion (a, b) {
@@ -238,7 +238,7 @@ function montarUnirExtender (editor, herramientas) {
     document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'vertices' } }))
     modo = cual
     botones[cual].classList.add('rg_activa')
-    sc().setMode('select'); sc().clearSelection()
+    elegirSeleccion(); sc().clearSelection()
     avisar(INICIOS[cual])
     if (cual === 'redondear') { campoRadio.hidden = false; campoRadio.querySelector('input').value = radio }
   }

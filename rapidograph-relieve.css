@@ -570,6 +570,17 @@ html, body { background: var(--nm-base); }
 .rg_manija:hover { background: #fbe3e3; }
 
 /* el recuadro de transformación solo aparece con su botón encendido */
+/* lo seleccionado se marca con un halo tenue que sigue su forma */
+#rg_contorno * {
+  fill: none !important;
+  stroke: #5b6bd6 !important;
+  stroke-opacity: 0.32 !important;
+  stroke-dasharray: none !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  marker: none !important;
+}
+
 /* (la banda elástica de selección múltiple vive en el mismo grupo: no se toca) */
 .svg_editor:not(.rg_transformar) #selectorParentGroup > g[id^="selectorGroup"],
 .svg_editor:not(.rg_transformar) #selectorGripsGroup { display: none; }

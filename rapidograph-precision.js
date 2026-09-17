@@ -21,7 +21,7 @@ const CLAVE_VARITA = 'rg_reconocer'
 // La geometría del lienzo es compartida; se importa con la misma marca de
 // versión con que se cargó este archivo para no quedar en la caché del navegador.
 const version = new URL(import.meta.url).search
-const { sc, pagina, aDocumento, aPantalla, crearCapaVista, alCambiarVista } = await import('./rapidograph-lienzo.js' + version)
+const { sc, pagina, aDocumento, aPantalla, crearCapaVista, alCambiarVista, elegirSeleccion } = await import('./rapidograph-lienzo.js' + version)
 
 function estiloDe (el) {
   const attrs = {}
@@ -302,9 +302,13 @@ function montarMedir (editor, herramientas, guias, iman) {
   function aplicar (encendido) {
     activo = encendido
     boton.classList.toggle('rg_activa', encendido)
-    if (encendido) { sc().setMode('select'); sc().clearSelection() } else limpiar()
+    if (encendido) {
+      document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'medir' } }))
+      elegirSeleccion(); sc().clearSelection()
+    } else limpiar()
   }
   boton.addEventListener('click', () => aplicar(!activo))
+  document.addEventListener('rg:modo', (e) => { if (e.detail.origen !== 'medir' && activo) aplicar(false) })
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && activo) aplicar(false) }, true)
 }
 
@@ -398,9 +402,13 @@ function montarEmpujar (editor, herramientas) {
   function aplicar (encendido) {
     activo = encendido
     boton.classList.toggle('rg_activa', encendido)
-    if (encendido) { sc().setMode('select'); sc().clearSelection() } else halo.hidden = true
+    if (encendido) {
+      document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'empujar' } }))
+      elegirSeleccion(); sc().clearSelection()
+    } else halo.hidden = true
   }
   boton.addEventListener('click', () => aplicar(!activo))
+  document.addEventListener('rg:modo', (e) => { if (e.detail.origen !== 'empujar' && activo) aplicar(false) })
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && activo) aplicar(false) }, true)
 }
 
@@ -512,7 +520,8 @@ function montarVarita (editor, herramientas) {
       sc().clearSelection()
       sc().addToSelection([nuevo])
       ultimoTrazo = null
-    }, 60)
+    // después de que SVG-Edit anote el trazo en el historial (hasta 200 ms)
+    }, 320)
   })
 
   const boton = botonHerramienta(herramientas, 'varita-oscuro',

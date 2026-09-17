@@ -16,7 +16,7 @@
 // La geometría del lienzo es compartida; se importa con la misma marca de
 // versión con que se cargó este archivo para no quedar en la caché del navegador.
 const version = new URL(import.meta.url).search
-const { sc, pagina, aDocumento, crearCapaVista, vista } = await import('./rapidograph-lienzo.js' + version)
+const { sc, pagina, aDocumento, crearCapaVista, vista, elegirSeleccion } = await import('./rapidograph-lienzo.js' + version)
 
 /** Estilo de trazo vigente del editor, para que lo nuevo salga como lo demás. */
 function estiloActual () {
@@ -95,7 +95,7 @@ function crearGestor (editor) {
     document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'dibujo' } }))
     actual = modo
     modo.boton.classList.add('rg_activa')
-    sc().setMode('select'); sc().clearSelection()
+    elegirSeleccion(); sc().clearSelection()
     avisar(modo.inicio)
   }
   document.addEventListener('rg:modo', (e) => { if (e.detail.origen !== 'dibujo' && actual) salir() })
@@ -672,31 +672,28 @@ function montarArcoCentro (editor, herramientas, gestor, previa, iman) {
 /* ------------------------------------------------------ pincel de boceto */
 
 /**
- * Pincel de boceto: trazo a mano alzada que se dibuja con varias pasadas
- * ligeramente desviadas y translúcidas, como un lápiz de bosquejo. Cada trazo
- * queda como un grupo de trazados, para moverlo o borrarlo entero.
+ * Boceto es un pincel del Lápiz: al soltar, el trazo recién dibujado recibe
+ * dos pasadas más, desviadas y translúcidas, y las tres quedan agrupadas para
+ * moverlas o borrarlas juntas. `encendido` lo consulta la franja de pinceles.
  */
-function montarBoceto (editor, herramientas, gestor, previa) {
-  let puntos = []
-  let presionado = false
+function montarBoceto (editor, encendido) {
+  const zona = editor.querySelector('#workarea')
+  const contenido = editor.querySelector('#svgcontent')
+  let ultimoTrazo = null
+  new MutationObserver((cambios) => {
+    for (const c of cambios) {
+      for (const n of c.addedNodes) {
+        if (n.nodeType === 1 && n.tagName.toLowerCase() === 'path') ultimoTrazo = n
+      }
+    }
+  }).observe(contenido, { childList: true, subtree: true })
 
-  const punto = (e) => { const p = pagina(editor); const [x, y] = aDocumento(p, e.clientX, e.clientY); return [x, y] }
-
-  function pintar () {
-    const p = pagina(editor)
-    if (!p || puntos.length < 2) return
-    const ctx = previa.contexto(p)
-    const estilo = estiloActual()
-    ctx.strokeStyle = estilo.stroke
-    ctx.lineWidth = Number(estilo['stroke-width']) || 2
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-    ctx.beginPath(); ctx.moveTo(puntos[0][0], puntos[0][1])
-    for (const q of puntos.slice(1)) ctx.lineTo(q[0], q[1])
-    ctx.stroke()
-  }
-
-  /** Suaviza con media móvil y devuelve un trazado con curvas cuadráticas. */
-  function trazado (pts, desvio) {
+  /** Muestrea el trazo y lo devuelve suavizado y desviado al azar. */
+  function trazado (el, desvio) {
+    const total = el.getTotalLength()
+    const n = Math.max(8, Math.min(160, Math.round(total / 6)))
+    const pts = []
+    for (let i = 0; i <= n; i++) { const q = el.getPointAtLength((total * i) / n); pts.push([q.x, q.y]) }
     const s = pts.map((q, i) => {
       const a = pts[Math.max(0, i - 1)]; const b = pts[Math.min(pts.length - 1, i + 1)]
       return [(a[0] + q[0] + b[0]) / 3 + (Math.random() - 0.5) * desvio, (a[1] + q[1] + b[1]) / 3 + (Math.random() - 0.5) * desvio]
@@ -707,56 +704,53 @@ function montarBoceto (editor, herramientas, gestor, previa) {
       d += ` Q ${redondear(s[i][0])} ${redondear(s[i][1])} ${redondear(mx)} ${redondear(my)}`
     }
     const u = s[s.length - 1]
-    d += ` L ${redondear(u[0])} ${redondear(u[1])}`
-    return d
+    return d + ` L ${redondear(u[0])} ${redondear(u[1])}`
   }
 
-  function terminar () {
-    presionado = false
-    previa.ocultar()
-    if (puntos.length < 3) { puntos = []; return }
-    const estilo = estiloActual()
-    const ancho = Number(estilo['stroke-width']) || 2
-    const pasadas = [
-      { desvio: 0, ancho, opacidad: 0.9 },
-      { desvio: ancho * 0.9 + 1.5, ancho: ancho * 0.8, opacidad: 0.5 },
-      { desvio: ancho * 1.4 + 2, ancho: ancho * 0.6, opacidad: 0.35 }
-    ]
-    const grupo = sc().addSVGElementsFromJson({
-      element: 'g',
-      attr: { id: sc().getNextId(), class: 'rg_boceto' },
-      children: pasadas.map(pa => ({
-        element: 'path',
-        attr: {
-          d: trazado(puntos, pa.desvio),
-          id: sc().getNextId(),
-          ...estilo,
-          'stroke-width': redondear(pa.ancho),
-          'stroke-opacity': pa.opacidad * (Number(estilo['stroke-opacity']) || 1),
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round'
-        }
-      }))
-    })
-    sc().clearSelection(); sc().addToSelection([grupo])
-    puntos = []
-  }
-
-  const boton = botonHerramienta(herramientas, 'boceto-oscuro',
-    'Pincel de boceto: trazo a mano alzada con aspecto de bosquejo a lápiz')
-  boton.addEventListener('click', () => gestor.activar({
-    nombre: 'boceto',
-    boton,
-    inicio: 'Pincel de boceto: dibuja a mano alzada (Esc para salir)',
-    alPresionar: (e) => { presionado = true; puntos = [punto(e)] },
-    alMover: (e) => {
-      if (!presionado) return
-      const q = punto(e); const u = puntos[puntos.length - 1]
-      if (Math.hypot(q[0] - u[0], q[1] - u[1]) >= 1.5) { puntos.push(q); pintar() }
-    },
-    alSoltar: () => { if (presionado) terminar() },
-    salir: () => { presionado = false; puntos = []; previa.ocultar() }
-  }))
+  zona.addEventListener('mouseup', () => {
+    if (!encendido() || !sc() || sc().getMode() !== 'fhpath') return
+    setTimeout(() => {
+      const el = ultimoTrazo
+      ultimoTrazo = null
+      if (!el || !el.isConnected || el.closest('.rg_boceto')) return
+      let largo = 0
+      try { largo = el.getTotalLength() } catch { return }
+      if (largo < 6) return
+      const ancho = Number(el.getAttribute('stroke-width')) || 2
+      const opacidad = Number(el.getAttribute('stroke-opacity')) || 1
+      const estilo = {}
+      for (const a of ['stroke', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray']) {
+        if (el.getAttribute(a) !== null) estilo[a] = el.getAttribute(a)
+      }
+      const Insertar = sc().history && sc().history.InsertElementCommand
+      const pasadas = [
+        { desvio: ancho * 0.9 + 1.5, ancho: ancho * 0.8, opacidad: 0.5 },
+        { desvio: ancho * 1.4 + 2, ancho: ancho * 0.6, opacidad: 0.35 }
+      ].map(pa => {
+        const nuevo = sc().addSVGElementsFromJson({
+          element: 'path',
+          attr: {
+            id: sc().getNextId(),
+            d: trazado(el, pa.desvio),
+            fill: 'none',
+            ...estilo,
+            'stroke-width': redondear(pa.ancho),
+            'stroke-opacity': redondear(pa.opacidad * opacidad)
+          }
+        })
+        if (Insertar) sc().addCommandToHistory(new Insertar(nuevo))
+        return nuevo
+      })
+      sc().clearSelection()
+      sc().addToSelection([el, ...pasadas])
+      sc().groupSelectedElements()
+      const grupo = sc().getSelectedElements().filter(Boolean)[0]
+      if (grupo && grupo.tagName.toLowerCase() === 'g') grupo.setAttribute('class', 'rg_boceto')
+      sc().clearSelection()
+    // SVG-Edit anota el trazo en el historial hasta 200 ms después de soltar:
+    // hay que agrupar después, o deshacer deja el trazo original huérfano
+    }, 320)
+  })
 }
 
 /* --------------------------------------------------- biblioteca de formas */
@@ -886,7 +880,9 @@ const PINCELES = [
   ['Marcador', { ancho: 12, opacidad: 0.85, tapa: 'butt', guiones: 'none' }],
   ['Resaltador', { ancho: 18, opacidad: 0.35, tapa: 'butt', guiones: 'none' }],
   ['Punteado', { ancho: 2, opacidad: 1, tapa: 'round', guiones: '2,6' }],
-  ['Trazos', { ancho: 2, opacidad: 1, tapa: 'butt', guiones: '8,5' }]
+  ['Trazos', { ancho: 2, opacidad: 1, tapa: 'butt', guiones: '8,5' }],
+  // pincel del Lápiz: cada trazo a mano alzada sale con aspecto de bosquejo
+  ['Boceto', { ancho: 3, opacidad: 0.9, tapa: 'round', guiones: 'none', boceto: true }]
 ]
 
 // Modos en los que se dibuja un trazo: los del editor y los propios.
@@ -894,13 +890,14 @@ const MODOS_DE_TRAZO = [
   'fhpath', 'line', 'path', 'rect', 'square', 'fhrect', 'ellipse', 'circle',
   'fhellipse', 'star', 'polygon'
 ]
-const MODOS_PROPIOS_DE_TRAZO = ['polilinea', 'arco', 'arco_centro', 'boceto']
+const MODOS_PROPIOS_DE_TRAZO = ['polilinea', 'arco', 'arco_centro']
 
 /**
  * Franja de pinceles en la barra superior. Solo aparece mientras hay una
  * herramienta de dibujo elegida, para no tapar el lienzo ni el panel.
  */
 function montarPinceles (editor, gestor) {
+  let boceto = false
   const franja = document.createElement('div')
   franja.id = 'rg_pinceles'
   franja.setAttribute('role', 'group')
@@ -918,7 +915,8 @@ function montarPinceles (editor, gestor) {
     boton.className = 'rg_pincel'
     boton.title = `${nombre}: grosor ${def.ancho}` +
       (def.opacidad < 1 ? `, opacidad ${Math.round(def.opacidad * 100)} %` : '') +
-      (def.guiones !== 'none' ? ', discontinuo' : '')
+      (def.guiones !== 'none' ? ', discontinuo' : '') +
+      (def.boceto ? '; con el Lápiz, el trazo sale como bosquejo de varias pasadas' : '')
     boton.innerHTML = `<svg viewBox="0 0 56 18" width="56" height="18" aria-hidden="true">
         <line x1="5" y1="9" x2="51" y2="9" stroke="#3d3832"
           stroke-width="${Math.min(def.ancho, 12)}" stroke-opacity="${def.opacidad}"
@@ -929,6 +927,7 @@ function montarPinceles (editor, gestor) {
       sc().setStrokeAttr('stroke-linecap', def.tapa)
       sc().setStrokeAttr('stroke-dasharray', def.guiones)
       sc().setStrokeAttr('stroke-opacity', def.opacidad)
+      boceto = !!def.boceto
       for (const b of franja.querySelectorAll('.rg_pincel')) b.setAttribute('aria-pressed', 'false')
       boton.setAttribute('aria-pressed', 'true')
     })
@@ -951,6 +950,7 @@ function montarPinceles (editor, gestor) {
     const visible = dibujando()
     if (franja.hidden === visible) franja.hidden = !visible
   }, 150)
+  return { boceto: () => boceto }
 }
 
 /* ---------------------------------------------------------------- montaje */
@@ -964,7 +964,7 @@ export function montarDibujo (editor, iman) {
   montarArco(editor, herramientas, gestor, previa, iman)
   montarArcoCentro(editor, herramientas, gestor, previa, iman)
   montarBote(editor, herramientas, gestor)
-  montarBoceto(editor, herramientas, gestor, previa)
   montarFormas(editor)
-  montarPinceles(editor, gestor)
+  const pinceles = montarPinceles(editor, gestor)
+  montarBoceto(editor, pinceles.boceto)
 }

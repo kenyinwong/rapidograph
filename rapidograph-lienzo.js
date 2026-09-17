@@ -10,6 +10,13 @@
 
 export const sc = () => window.svgEditor && window.svgEditor.svgCanvas
 
+/** Deja elegida la flecha de selección, también en la paleta de SVG-Edit. */
+export function elegirSeleccion () {
+  const ed = window.svgEditor
+  if (ed && ed.leftPanel && ed.leftPanel.clickSelect) ed.leftPanel.clickSelect()
+  else if (sc()) sc().setMode('select')
+}
+
 /** Rectángulo en pantalla de la página y zoom vigente. */
 export function pagina (editor) {
   const fondo = editor.querySelector('#canvasBackground rect')

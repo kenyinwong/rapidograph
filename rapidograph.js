@@ -13,15 +13,16 @@
 // Los módulos hijos heredan la marca de versión con que se cargó este archivo,
 // para que tampoco los sirva la caché del navegador tras publicar un cambio.
 const version = new URL(import.meta.url).search
-const [{ descargarDXF }, { montarVertices }, { montarPrecision }, { montarDibujo }, lienzoVista, { montarTactil }] = await Promise.all([
+const [{ descargarDXF }, { montarVertices }, { montarPrecision }, { montarDibujo }, lienzoVista, { montarTactil }, { montarSeleccion }] = await Promise.all([
   import('./rapidograph-dxf.js' + version),
   import('./rapidograph-vertices.js' + version),
   import('./rapidograph-precision.js' + version),
   import('./rapidograph-dibujo.js' + version),
   import('./rapidograph-lienzo.js' + version),
-  import('./rapidograph-tactil.js' + version)
+  import('./rapidograph-tactil.js' + version),
+  import('./rapidograph-seleccion.js' + version)
 ])
-const { crearCapaVista, alCambiarVista } = lienzoVista
+const { crearCapaVista, alCambiarVista, elegirSeleccion } = lienzoVista
 
 const CLAVE_SESION = 'rg_sesion'
 const CLAVE_GUIAS = 'rg_guias'
@@ -509,9 +510,7 @@ function montarTransformacion (editor, herramientas) {
   boton.addEventListener('click', () => {
     if (!activo) {
       document.dispatchEvent(new CustomEvent('rg:modo', { detail: { origen: 'transformar' } }))
-      window.svgEditor.svgCanvas.setMode('select')
-      const flecha = editor.querySelector('#tool_select')
-      if (flecha) flecha.click()
+      elegirSeleccion()
     }
     aplicar(!activo)
   })
@@ -557,6 +556,17 @@ function acomodarBarraInferior (editor) {
   for (const hijo of [...barra.children]) if (hijo !== paleta) grupo.append(hijo)
   barra.prepend(grupo)
   if (paleta) paleta.classList.add('rg_izquierda')
+  // al mover los selectores de color SVG-Edit les dibuja un segundo cuadro de
+  // muestra, que cae fuera de la isla: el vigente es el último, sobra el resto
+  const unSoloCuadro = () => {
+    for (const id of ['#fill_color', '#stroke_color']) {
+      const selector = editor.querySelector(id)
+      const cuadros = selector && selector.shadowRoot ? [...selector.shadowRoot.querySelectorAll('#block > svg')] : []
+      cuadros.slice(0, -1).forEach(c => c.remove())
+    }
+  }
+  unSoloCuadro()
+  for (const espera of [500, 1500, 4000]) setTimeout(unSoloCuadro, espera)
 }
 
 /* ---------------------------------------------------------- vista inicial */
@@ -603,6 +613,7 @@ export async function iniciarRapidoGraph () {
   const ajustarPaleta = montarPaleta(editor, guias)
   montarRedondeo(editor, editor.querySelector('#tools_left'))
   montarTransformacion(editor, editor.querySelector('#tools_left'))
+  montarSeleccion(editor)
   montarVertices(editor)
   const precision = montarPrecision(editor, guias)
   montarDibujo(editor, precision.iman)
