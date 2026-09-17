@@ -7,19 +7,31 @@
   <title>RapidoGraph — dibujo vectorial</title>
   <link rel="icon" href="./marca/glifo.svg" />
   <style>
+    /* Misma superficie en relieve que el editor: un solo tono, y la forma la dan
+       una sombra de luz arriba a la izquierda y otra de sombra abajo a la derecha. */
     :root {
-      --tinta: #302a52;
-      --tinta-alta: #423a6d;
-      --tinta-texto: #e9e5f5;
-      --crema: #f6f6f7;
-      --marfil: #ffffff;
-      --grafito: #3d3832;
-      --borde: #dfdfe4;
-      --rojo: #dc3839;
-      --curva: cubic-bezier(0.23, 1, 0.32, 1);
+      --nm-base: #e3e7ee;
+      --nm-luz: #ffffff;
+      --nm-sombra: #b3bbcc;
+      --nm-sombra-honda: #a3adc1;
+      --nm-tinta: #26243d;         /* 12.1:1 sobre la base */
+      --nm-tinta-suave: #4f4d68;   /* 6.5:1 */
+      --nm-acento: #bd2325;        /* 4.9:1 */
+      --nm-indigo: #302a52;
+
+      --nm-relieve: 6px 6px 14px var(--nm-sombra), -6px -6px 14px var(--nm-luz);
+      --nm-relieve-alto: 10px 14px 26px var(--nm-sombra-honda), -9px -9px 20px var(--nm-luz);
+      --nm-relieve-bajo: 2px 2px 5px var(--nm-sombra), -2px -2px 5px var(--nm-luz);
+      --nm-hundido: inset 5px 5px 11px var(--nm-sombra), inset -5px -5px 11px var(--nm-luz);
+      --nm-bandeja: inset 9px 9px 22px var(--nm-sombra), inset -9px -9px 22px var(--nm-luz);
+
+      --nm-tiempo: 200ms;
+      --nm-curva: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     * { box-sizing: border-box; }
+
+    html { background: var(--nm-base); }
 
     body {
       margin: 0;
@@ -27,276 +39,232 @@
       display: grid;
       grid-template-columns: 2fr 1fr;
       font-family: 'Segoe UI', Inter, system-ui, sans-serif;
-      color: var(--grafito);
-      background: var(--crema);
+      color: var(--nm-tinta);
+      background: var(--nm-base);
     }
 
-    /* ---------- lado de la marca ---------- */
+    ::selection { background: rgba(48, 42, 82, .22); }
+
+    /* ---------- presentación ---------- */
     .presentacion {
-      background: var(--tinta);
-      color: var(--tinta-texto);
-      padding: clamp(32px, 6vw, 80px);
+      padding: clamp(28px, 4vw, 64px);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      gap: 48px;
-      overflow: hidden;
-      position: relative;
+      gap: clamp(24px, 3vw, 40px);
+      min-width: 0;
     }
 
     .presentacion img.logo {
+      display: block;
       width: min(720px, 90%);
       height: auto;
-      color: var(--marfil);
     }
 
-    .presentacion h1 {
-      font-size: clamp(30px, 3.4vw, 46px);
+    .contenido {
+      display: grid;
+      grid-template-columns: minmax(340px, 1fr) auto;
+      align-items: center;
+      gap: clamp(28px, 3.4vw, 56px);
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      max-width: 20ch;
+      font-size: clamp(30px, 3.2vw, 46px);
       line-height: 1.08;
       letter-spacing: -0.025em;
-      margin: 0 0 18px;
-      max-width: 22ch;
-      color: var(--marfil);
       text-wrap: balance;
     }
 
     .presentacion p {
       margin: 0;
       max-width: 46ch;
-      font-size: 15px;
+      font-size: 15.5px;
       line-height: 1.6;
-      color: #b9b2dd;
+      color: var(--nm-tinta-suave);
     }
 
     .capacidades {
       list-style: none;
-      margin: 26px 0 0;
+      margin: 28px 0 0;
       padding: 0;
       display: grid;
-      gap: 10px;
-      font-size: 14px;
-      color: var(--tinta-texto);
+      gap: 12px;
+      font-size: 14.5px;
+      color: var(--nm-tinta);
     }
 
     .capacidades li {
       display: flex;
-      align-items: baseline;
-      gap: 10px;
+      align-items: center;
+      gap: 14px;
     }
 
+    /* la viñeta es un botón en miniatura, del mismo relieve que los del editor */
     .capacidades li::before {
       content: "";
-      width: 7px;
-      height: 7px;
       flex: 0 0 auto;
-      border-radius: 2px;
-      background: var(--marfil);
-      transform: translateY(-1px);
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--nm-base);
+      box-shadow: var(--nm-relieve-bajo);
+    }
+
+    /* el dibujo del lápiz descansa en una bandeja hundida en la superficie */
+    .vitrina {
+      justify-self: end;
+      padding: clamp(18px, 2.2vw, 36px);
+      border-radius: clamp(32px, 4vw, 60px);
+      background: var(--nm-base);
+      box-shadow: var(--nm-bandeja);
+    }
+
+    /* grande, pero sin salirse: el alto de la ventana también manda */
+    .vitrina img {
+      display: block;
+      width: clamp(260px, min(32vw, 46vh), 720px);
+      height: auto;
     }
 
     .pie {
       font-size: 12.5px;
-      color: #8f88bd;
+      line-height: 1.7;
+      color: var(--nm-tinta-suave);
     }
 
-    .pie a { color: #c3bce6; }
+    .pie a {
+      color: var(--nm-indigo);
+      text-underline-offset: 3px;
+    }
 
-    /* ---------- lado del ingreso ---------- */
+    .pie a:focus-visible,
+    #entrar:focus-visible {
+      outline: 2px solid var(--nm-indigo);
+      outline-offset: 4px;
+    }
+
+    /* ---------- ingreso ---------- */
     .ingreso {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: clamp(28px, 5vw, 64px);
+      padding: clamp(28px, 4vw, 64px);
     }
 
-    form,
+    /* surco que separa las dos zonas sin dibujar una barra */
+    .ingreso::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 12%;
+      bottom: 12%;
+      width: 4px;
+      border-radius: 4px;
+      background: var(--nm-base);
+      box-shadow: inset 1px 1px 2px var(--nm-sombra), inset -1px -1px 2px var(--nm-luz);
+    }
+
     .entrada {
       width: 100%;
-      max-width: 380px;
+      max-width: 360px;
     }
 
     h2 {
+      margin: 0 0 10px;
       font-size: 25px;
       letter-spacing: -0.02em;
-      margin: 0 0 8px;
     }
 
     .subtitulo {
-      margin: 0 0 28px;
-      font-size: 14.5px;
+      margin: 0 0 34px;
+      font-size: 15px;
       line-height: 1.55;
-      color: #63636b;
+      color: var(--nm-tinta-suave);
     }
 
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 7px;
-    }
-
-    input[type="email"] {
+    #entrar {
       width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
       font: inherit;
-      font-size: 15px;
-      color: var(--grafito);
-      background: var(--marfil);
-      border: 1px solid var(--borde);
-      border-radius: 8px;
-      padding: 11px 13px;
-      caret-color: var(--rojo);
-      transition: border-color 140ms ease, box-shadow 140ms ease;
-    }
-
-    input[type="email"]::placeholder { color: #9c9ca3; }
-
-    input[type="email"]:hover { border-color: #c9c9d1; }
-
-    input[type="email"]:focus {
-      outline: none;
-      border-color: var(--tinta);
-      box-shadow: 0 0 0 3px rgba(48, 42, 82, .16);
-    }
-
-    input[type="email"][aria-invalid="true"] {
-      border-color: var(--rojo);
-      box-shadow: 0 0 0 3px rgba(220, 56, 57, .15);
-    }
-
-    .aviso {
-      min-height: 19px;
-      margin: 8px 0 0;
-      font-size: 13px;
-      color: var(--rojo);
-    }
-
-    button {
-      width: 100%;
-      margin-top: 18px;
-      font: inherit;
-      font-size: 15px;
+      font-size: 16.5px;
       font-weight: 600;
-      color: var(--marfil);
-      background: var(--tinta);
-      border: 1px solid var(--tinta);
-      border-radius: 8px;
-      padding: 12px 16px;
+      color: var(--nm-tinta);
+      background: var(--nm-base);
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 10px 10px 30px;
+      box-shadow: var(--nm-relieve);
       cursor: pointer;
-      transition: background-color 140ms ease, transform 140ms var(--curva);
+      transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease, color var(--nm-tiempo) ease;
     }
 
-    button:hover { background: var(--tinta-alta); }
-    button:active { transform: scale(0.985); }
-
-    button:focus-visible {
-      outline: 2px solid var(--tinta);
-      outline-offset: 2px;
-    }
-
-    .letra-chica {
-      margin: 20px 0 0;
-      font-size: 12.5px;
-      line-height: 1.55;
-      color: #75757d;
-    }
-
-    .ultimo {
-      margin-top: 24px;
-      padding-top: 18px;
-      border-top: 1px solid var(--borde);
-      font-size: 13px;
-      color: #63636b;
-    }
-
-    .ultimo button {
-      width: auto;
-      margin: 8px 0 0;
-      font-size: 13.5px;
-      font-weight: 500;
-      color: var(--grafito);
-      background: var(--marfil);
-      border-color: var(--borde);
-      padding: 8px 13px;
-    }
-
-    .ultimo button:hover { background: #e8e8ec; }
-
-    .contenido {
+    /* la flecha vive en su propio círculo hundido: es lo que cambia al pulsar */
+    #entrar .flecha {
+      flex: 0 0 auto;
       display: grid;
-      grid-template-columns: minmax(300px, 1fr) auto;
-      align-items: center;
-      gap: clamp(24px, 4vw, 64px);
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--nm-base);
+      box-shadow: var(--nm-hundido);
+      color: var(--nm-tinta);
+      transition: color var(--nm-tiempo) ease;
     }
 
-    /* el dibujo del lápiz en su versión para fondo oscuro, sin lámina */
-    .vitrina {
-      justify-self: end;
-    }
-
-    .vitrina img {
+    #entrar .flecha svg {
       display: block;
-      width: clamp(380px, 44vw, 780px);
-      height: auto;
+      transition: transform var(--nm-tiempo) var(--nm-curva);
     }
 
-    .separador {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 18px 0 12px;
-      color: #9c9ca3;
-      font-size: 12.5px;
+    #entrar:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--nm-relieve-alto);
     }
 
-    .separador::before,
-    .separador::after {
-      content: "";
-      flex: 1;
-      border-top: 1px solid var(--borde);
+    #entrar:hover .flecha svg { transform: translateX(3px); }
+
+    #entrar:active {
+      transform: translateY(0) scale(0.985);
+      box-shadow: var(--nm-hundido);
+      color: var(--nm-acento);
     }
 
-    button.google {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 0;
-      color: var(--grafito);
-      background: var(--marfil);
-      border: 1px solid var(--borde);
-      font-weight: 500;
-    }
+    #entrar:active .flecha { color: var(--nm-acento); }
+    #entrar:active .flecha svg { transform: translateX(6px) scale(0.9); }
 
-    button.google:hover { background: #ececf0; }
-
-    #zona_google .aviso {
-      color: #63636b;
-      min-height: 0;
-    }
-
-    #zona_google .aviso a { color: var(--tinta); }
-
+    /* ---------- pantallas estrechas ---------- */
     @media (max-width: 1100px) {
       .contenido { grid-template-columns: 1fr; }
       .vitrina { justify-self: start; }
+      .vitrina img { width: clamp(240px, min(58vw, 52vh), 520px); }
     }
 
     @media (max-width: 860px) {
       body { grid-template-columns: 1fr; }
       .presentacion { gap: 28px; }
-      .capacidades { display: none; }
+      .ingreso { padding-top: 12px; }
+      .ingreso::before { left: 12%; right: 12%; top: 0; bottom: auto; width: auto; height: 4px; }
+      .entrada { max-width: 420px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      * { transition-duration: 0s !important; }
-      button:active { transform: none; }
+      :root { --nm-tiempo: 0ms; }
+      #entrar:hover, #entrar:active { transform: none; }
+      #entrar:hover .flecha svg, #entrar:active .flecha svg { transform: none; }
     }
   </style>
 </head>
 
 <body>
   <section class="presentacion">
-    <img class="logo" src="./marca/rapidograph-blanco.svg" alt="RapidoGraph" width="360" height="89" />
+    <img class="logo" src="./marca/rapidograph-tinta.svg" alt="RapidoGraph" width="720" height="153" />
     <div class="contenido">
       <div>
         <h1>Dibujo vectorial que se abre en un segundo.</h1>
@@ -305,13 +273,13 @@
           el trabajo a ningún servidor. Los archivos salen en SVG, PNG, PDF y DXF.
         </p>
         <ul class="capacidades">
-          <li>Herramientas en un panel flotante sobre el lienzo</li>
-          <li>Reglas pegadas a la página, con el zoom siempre a la vista</li>
+          <li>Lienzo a pantalla completa, con las herramientas flotando encima</li>
+          <li>Imán, guías isométricas y medición a escala</li>
           <li>Exportación a DXF para seguir en CAD</li>
         </ul>
       </div>
       <div class="vitrina">
-        <img src="./marca/lapiz-portada-oscuro.svg" width="1200" height="1200"
+        <img src="./marca/lapiz-portada-relieve.svg" width="1200" height="1200"
           alt="Lápiz dibujando un trazado vectorial con nodos" />
       </div>
     </div>
@@ -329,7 +297,14 @@
       <p class="subtitulo">
         Dibuja directo en el navegador. Tu trabajo se guarda solamente en este equipo.
       </p>
-      <button type="button" id="entrar">Entrar</button>
+      <button type="button" id="entrar">
+        Entrar
+        <span class="flecha" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor">
+            <path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z" />
+          </svg>
+        </span>
+      </button>
     </div>
   </section>
 
