@@ -18,18 +18,10 @@
 const CLAVE_SNAP = 'rg_snap'
 const CLAVE_VARITA = 'rg_reconocer'
 
-const sc = () => window.svgEditor && window.svgEditor.svgCanvas
-
-function pagina (editor) {
-  const fondo = editor.querySelector('#canvasBackground rect')
-  if (!fondo || !sc()) return null
-  const rect = fondo.getBoundingClientRect()
-  const res = sc().getResolution()
-  return { rect, zoom: rect.width / res.w || 1 }
-}
-
-const aDocumento = (p, x, y) => [(x - p.rect.left) / p.zoom, (y - p.rect.top) / p.zoom]
-const aPantalla = (p, x, y) => [p.rect.left + x * p.zoom, p.rect.top + y * p.zoom]
+// La geometría del lienzo es compartida; se importa con la misma marca de
+// versión con que se cargó este archivo para no quedar en la caché del navegador.
+const version = new URL(import.meta.url).search
+const { sc, pagina, aDocumento, aPantalla, crearCapaVista, alCambiarVista } = await import('./rapidograph-lienzo.js' + version)
 
 function estiloDe (el) {
   const attrs = {}
@@ -228,11 +220,7 @@ function montarIman (editor, herramientas, guias) {
 
 function montarMedir (editor, herramientas, guias, iman) {
   const zona = editor.querySelector('#workarea')
-  const lienzo = editor.querySelector('#svgcanvas')
-  const capa = document.createElement('canvas')
-  capa.id = 'rg_medida'
-  capa.className = 'rg_regla'
-  lienzo.append(capa)
+  const capa = crearCapaVista(editor, 'rg_medida', 4)
   const rotulo = document.createElement('div')
   rotulo.id = 'rg_medida_rotulo'
   rotulo.hidden = true
@@ -240,38 +228,32 @@ function montarMedir (editor, herramientas, guias, iman) {
 
   let activo = false
   let desde = null
+  let ultima = null          // última medida, para repintarla si la vista se mueve
 
   function limpiar () {
-    capa.style.display = 'none'
+    capa.ocultar()
     rotulo.hidden = true
     desde = null
+    ultima = null
   }
 
-  function dibujar (a, b, p) {
-    const base = lienzo.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
-    capa.style.display = 'block'
-    capa.style.left = (p.rect.left - base.left) + 'px'
-    capa.style.top = (p.rect.top - base.top) + 'px'
-    capa.style.width = p.rect.width + 'px'
-    capa.style.height = p.rect.height + 'px'
-    capa.width = Math.max(1, Math.round(p.rect.width * dpr))
-    capa.height = Math.max(1, Math.round(p.rect.height * dpr))
-    const ctx = capa.getContext('2d')
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, p.rect.width, p.rect.height)
+  function dibujar (a, b) {
+    const c = capa.contexto()
+    if (!c) return
+    const { ctx, p } = c
+    ultima = [a, b]
     ctx.strokeStyle = '#dc3839'
     ctx.fillStyle = '#dc3839'
-    ctx.lineWidth = 1.5
-    ctx.setLineDash([6, 4])
+    ctx.lineWidth = 1.5 / p.zoom
+    ctx.setLineDash([6 / p.zoom, 4 / p.zoom])
     ctx.beginPath()
-    ctx.moveTo(a.x * p.zoom, a.y * p.zoom)
-    ctx.lineTo(b.x * p.zoom, b.y * p.zoom)
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(b.x, b.y)
     ctx.stroke()
     ctx.setLineDash([])
     for (const q of [a, b]) {
       ctx.beginPath()
-      ctx.arc(q.x * p.zoom, q.y * p.zoom, 3.5, 0, Math.PI * 2)
+      ctx.arc(q.x, q.y, 3.5 / p.zoom, 0, Math.PI * 2)
       ctx.fill()
     }
 
@@ -287,6 +269,7 @@ function montarMedir (editor, herramientas, guias, iman) {
     rotulo.style.top = (sy - rBase.top - 26) + 'px'
     rotulo.hidden = false
   }
+  alCambiarVista(editor, () => { if (ultima) dibujar(ultima[0], ultima[1]) })
 
   const puntoDoc = (e, p) => {
     let [x, y] = aDocumento(p, e.clientX, e.clientY)
@@ -302,8 +285,8 @@ function montarMedir (editor, herramientas, guias, iman) {
     if (!p) return
     if (e.type === 'mousedown') { desde = puntoDoc(e, p); return }
     if (!desde) return
-    if (e.type === 'mousemove' && e.buttons) dibujar(desde, puntoDoc(e, p), p)
-    if (e.type === 'mouseup') { dibujar(desde, puntoDoc(e, p), p); desde = null }
+    if (e.type === 'mousemove' && e.buttons) dibujar(desde, puntoDoc(e, p))
+    if (e.type === 'mouseup') { dibujar(desde, puntoDoc(e, p)); desde = null }
   }
   for (const tipo of ['mousedown', 'mousemove', 'mouseup', 'click', 'pointerdown', 'pointerup']) {
     zona.addEventListener(tipo, (e) => {

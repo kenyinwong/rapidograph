@@ -2,23 +2,26 @@
  * RapidoGraph — capa de interfaz sobre SVG-Edit.
  *
  * No toca el motor del editor: reordena su interfaz una vez montada.
- *   · banda oscura de arriba a abajo con el logotipo centrado, los comandos de
- *     archivo como botones con icono y el panel de capas
- *   · herramientas de dibujo en un panel flotante sobre el lienzo
- *   · reglas dibujadas pegadas al borde exterior de la página
- *   · guías configurables (encender, distancia y colores)
- *   · exportación a DXF y sesión por correo en la barra superior
+ *   · lienzo a pantalla completa, sin borde de página ni barras de fondo
+ *   · todo flota sobre el lienzo: logotipo, comandos de archivo, herramientas,
+ *     propiedades, capas y sesión, con botones circulares en relieve
+ *   · guías y reglas dibujadas sobre la vista (la cuadrícula es infinita)
+ *   · gestos táctiles: un dedo dibuja, dos dedos amplían y desplazan
+ *   · exportación a DXF desde el diálogo Exportar
  */
 
 // Los módulos hijos heredan la marca de versión con que se cargó este archivo,
 // para que tampoco los sirva la caché del navegador tras publicar un cambio.
 const version = new URL(import.meta.url).search
-const [{ descargarDXF }, { montarVertices }, { montarPrecision }, { montarDibujo }] = await Promise.all([
+const [{ descargarDXF }, { montarVertices }, { montarPrecision }, { montarDibujo }, lienzoVista, { montarTactil }] = await Promise.all([
   import('./rapidograph-dxf.js' + version),
   import('./rapidograph-vertices.js' + version),
   import('./rapidograph-precision.js' + version),
-  import('./rapidograph-dibujo.js' + version)
+  import('./rapidograph-dibujo.js' + version),
+  import('./rapidograph-lienzo.js' + version),
+  import('./rapidograph-tactil.js' + version)
 ])
+const { crearCapaVista, alCambiarVista } = lienzoVista
 
 const CLAVE_SESION = 'rg_sesion'
 const CLAVE_GUIAS = 'rg_guias'
@@ -81,37 +84,40 @@ function crear (etiqueta, props = {}, padre = null) {
   return el
 }
 
-/* -------------------------------------------------------- barra superior */
+/* ------------------------------------------------- accesos (arriba derecha) */
 
-function montarBarraSuperior (editor, sesion, guias) {
-  const barra = editor.querySelector('#tools_top')
+const CLAVE_CAPAS = 'rg_capas_abiertas'
 
-  // el menú "SVG-Edit" desaparece: sus comandos pasan a la banda como botones
+/** Botón circular con icono, del mismo lenguaje que las herramientas. */
+function botonCircular (padre, icono, rotulo) {
+  const b = crear('button', { className: 'rg_circular', type: 'button', title: rotulo }, padre)
+  b.setAttribute('aria-label', rotulo)
+  const img = crear('img', { src: './marca/acciones/' + icono + '.svg', alt: '' }, b)
+  img.width = 24; img.height = 24
+  return b
+}
+
+function montarAccesos (editor, guias) {
+  // el menú "SVG-Edit" desaparece: sus comandos son botones flotantes
   const menu = editor.querySelector('#main_button')
   if (menu) menu.style.display = 'none'
 
-  const zona = crear('div', { id: 'rg_sesion' })
-
-  // guías de dibujo: interruptor con icono de regla en la barra superior
-  const botonGuias = crear('button', { className: 'rg_boton rg_boton_icono', type: 'button' }, zona)
-  botonGuias.title = 'Guías de dibujo: encender, distancia y colores'
+  const zona = crear('div', { id: 'rg_sesion' }, editor)
+  const botonGuias = botonCircular(zona, 'guias-oscuro', 'Guías y reglas: cuadrícula, distancia, colores y escala')
+  botonGuias.classList.add('rg_boton_icono')
   botonGuias.setAttribute('aria-haspopup', 'true')
-  const imgGuias = crear('img', { src: './marca/acciones/guias-oscuro.svg', alt: 'Guías' }, botonGuias)
-  imgGuias.width = 20; imgGuias.height = 20
   botonGuias.addEventListener('click', () => guias.alternarPanel(botonGuias))
 
-  if (sesion) {
-    if (sesion.correo) crear('span', { className: 'rg_correo', textContent: sesion.correo, title: sesion.correo }, zona)
-    const salir = crear('button', { className: 'rg_boton', textContent: 'Salir', type: 'button' }, zona)
-    salir.addEventListener('click', cerrarSesion)
-  }
-  barra.append(zona)
+  const botonCapas = botonCircular(zona, 'capas-oscuro', 'Mostrar u ocultar el panel de capas')
+  const salir = botonCircular(zona, 'salir-oscuro', 'Salir: cierra la sesión y deja el lienzo en blanco')
+  salir.addEventListener('click', cerrarSesion)
+  return { botonCapas }
 }
 
 /* ------------------------------------------------------------------ banda */
 
 // Comandos del antiguo menú "SVG-Edit": id del elemento que ejecuta la acción,
-// icono blanco en marca/acciones y rótulo del título.
+// icono en marca/acciones (versión -oscuro) y rótulo del título.
 const ACCIONES = [
   ['tool_clear', 'nuevo', 'Nuevo dibujo'],
   ['tool_open', 'abrir', 'Abrir SVG'],
@@ -123,24 +129,20 @@ const ACCIONES = [
   ['tool_editor_prefs', 'preferencias', 'Preferencias del editor']
 ]
 
-function montarBanda (editor) {
-  const banda = crear('div', { id: 'rg_banda' })
+function montarFlotantes (editor, accesos) {
+  // logotipo, arriba a la izquierda
+  const marca = crear('div', { id: 'rg_marca' }, editor)
+  const logo = crear('img', { src: './marca/rapidograph-tinta.svg', alt: 'RapidoGraph' }, marca)
+  logo.width = 156; logo.height = 33
 
-  // logotipo centrado, en blanco, arriba del todo
-  const marca = crear('div', { id: 'rg_marca' }, banda)
-  const logo = crear('img', { src: './marca/rapidograph-blanco.svg', alt: 'RapidoGraph' })
-  logo.width = 206; logo.height = 50
-  marca.append(logo)
-
-  // Comandos de archivo como botones con icono. El editor crea varios de los
-  // elementos del menú después de arrancar, así que el destino se busca al
-  // hacer clic, no al montar la banda.
-  const acciones = crear('div', { id: 'rg_acciones' }, banda)
+  // Comandos de archivo como botones circulares, al inicio de la fila superior.
+  // El editor crea varios de los elementos del menú después de arrancar, así
+  // que el destino se busca al hacer clic, no al montar.
+  const fila = editor.querySelector('#tools_top')
+  const acciones = crear('div', { id: 'rg_acciones' })
+  fila.prepend(acciones)
   for (const [id, icono, rotulo] of ACCIONES) {
-    const boton = crear('button', { className: 'rg_accion', type: 'button', title: rotulo }, acciones)
-    const img = crear('img', { src: './marca/acciones/' + icono + '.svg', alt: '' }, boton)
-    img.width = 30; img.height = 30
-    boton.setAttribute('aria-label', rotulo)
+    const boton = botonCircular(acciones, icono + '-oscuro', rotulo)
     boton.addEventListener('click', () => {
       const destino = document.getElementById(id)
       if (destino) destino.click()
@@ -148,19 +150,21 @@ function montarBanda (editor) {
     })
   }
 
-  crear('p', { className: 'rg_titulo', textContent: 'Capas' }, banda)
+  // capas: isla flotante a la derecha, plegable y recordada
+  const capas = crear('div', { id: 'rg_capas' }, editor)
+  crear('p', { className: 'rg_titulo', textContent: 'Capas' }, capas)
   const paneles = editor.querySelector('#sidepanels')
-  if (paneles) banda.append(paneles)
+  if (paneles) capas.append(paneles)
 
-  // Las acciones que vivían en el menú contextual "más opciones" pasan a ser
-  // botones visibles junto a los demás del panel de capas. Ese menú despacha
-  // un CustomEvent "change" con el gesto pedido; aquí se emite lo mismo.
+  // Las acciones que vivían en el menú contextual "más opciones" son botones
+  // visibles junto a los demás. Ese menú despacha un CustomEvent "change" con
+  // el gesto pedido; aquí se emite lo mismo.
   const CAPA_ACCIONES = [
     ['dupe', 'capa-duplicar-oscuro', 'Duplicar capa'],
     ['merge_down', 'capa-fusionar-oscuro', 'Fusionar con la capa de abajo'],
     ['merge_all', 'capa-fusionar-todo-oscuro', 'Fusionar todas las capas']
   ]
-  const filaCapas = banda.querySelector('#layerbuttons')
+  const filaCapas = capas.querySelector('#layerbuttons')
   if (filaCapas) {
     for (const [gesto, icono, rotulo] of CAPA_ACCIONES) {
       const boton = crear('button', { className: 'rg_capa_btn', type: 'button', title: rotulo }, filaCapas)
@@ -168,13 +172,29 @@ function montarBanda (editor) {
       img.width = 18; img.height = 18
       boton.setAttribute('aria-label', rotulo)
       boton.addEventListener('click', () => {
-        const menu = document.getElementById('se-cmenu-layers-more')
-        if (menu) menu.dispatchEvent(new CustomEvent('change', { detail: { trigger: gesto, source: menu.value } }))
+        const menuCapas = document.getElementById('se-cmenu-layers-more')
+        if (menuCapas) menuCapas.dispatchEvent(new CustomEvent('change', { detail: { trigger: gesto, source: menuCapas.value } }))
       })
     }
   }
-  editor.append(banda)
-  editor.classList.add('open')   // el panel de capas queda siempre desplegado
+  editor.classList.add('open')   // SVG-Edit solo llena el panel de capas si lo cree desplegado
+
+  // en pantallas estrechas arranca plegada, salvo que el usuario la haya abierto
+  let abiertas = window.innerWidth >= 1200
+  try {
+    const guardado = localStorage.getItem(CLAVE_CAPAS)
+    if (guardado !== null) abiertas = guardado === '1'
+  } catch { /* sin memoria */ }
+  const mostrar = (si) => {
+    abiertas = si
+    capas.hidden = !si
+    editor.classList.toggle('rg_con_capas', si)   // la fila superior le deja sitio
+    accesos.botonCapas.classList.toggle('rg_activa', si)
+    accesos.botonCapas.setAttribute('aria-pressed', String(si))
+    try { localStorage.setItem(CLAVE_CAPAS, si ? '1' : '0') } catch { /* sin memoria */ }
+  }
+  accesos.botonCapas.addEventListener('click', () => mostrar(!abiertas))
+  mostrar(abiertas)
 }
 
 /* ----------------------------------------------------- panel de herramientas */
@@ -196,8 +216,8 @@ function montarPaleta (editor, guias) {
     if (!herramientas || !herramientas.children.length) return
     const boton = herramientas.children[0].getBoundingClientRect()
     const alto = boton.height || 54
-    const zona = editor.querySelector('#workarea')
-    const disponible = (zona ? zona.getBoundingClientRect().height : window.innerHeight) - 56
+    // entre la fila superior flotante y el grupo de propiedades de abajo
+    const disponible = window.innerHeight - 96 - 118
     const total = herramientas.children.length
     const filas = Math.min(total, Math.max(1, Math.floor(disponible / alto)))
     herramientas.style.display = 'grid'
@@ -205,6 +225,8 @@ function montarPaleta (editor, guias) {
     herramientas.style.gridTemplateRows = `repeat(${filas}, auto)`
     herramientas.style.height = 'auto'
     herramientas.style.justifyItems = 'center'
+    const derecha = paleta.getBoundingClientRect().right - editor.getBoundingClientRect().left
+    editor.style.setProperty('--rg-paleta-der', Math.ceil(derecha + 10) + 'px')
   }
 
   ajustar()
@@ -212,11 +234,12 @@ function montarPaleta (editor, guias) {
   return ajustar
 }
 
-/* ------------------------------------------------------------------ guías */
+/* --------------------------------------------------------- guías y reglas */
 
 function configuracionGuias () {
   const porDefecto = {
     activas: false,
+    reglas: true,
     distancia: 50,
     color: '#8fa0d8',
     colorPrincipal: '#302a52',
@@ -239,63 +262,83 @@ const FAMILIAS_GUIA = {
 }
 
 /**
- * Rejilla de guías sobre la página: líneas cada `distancia` unidades del
- * documento y, cada cinco, una línea principal con su propio color.
+ * Cuadrícula de guías y reglas. El lienzo no tiene borde, así que ambas cubren
+ * la vista: la cuadrícula es infinita y las reglas son solo marcas y números
+ * pegados al borde de la pantalla, sin ninguna barra de fondo.
  */
 function montarGuias (editor) {
-  const lienzo = editor.querySelector('#svgcanvas')
-  const capa = crear('canvas', { id: 'rg_guias', className: 'rg_regla' }, lienzo)
+  const capa = crearCapaVista(editor, 'rg_guias', 2)
   let config = configuracionGuias()
 
   function guardar () {
     try { localStorage.setItem(CLAVE_GUIAS, JSON.stringify(config)) } catch { /* sin memoria */ }
   }
 
+  const PASOS = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]
+  const paso = (zoom, minimoPx) => PASOS.find(q => q * zoom >= minimoPx) || PASOS[PASOS.length - 1]
+
   function dibujar () {
-    const fondo = editor.querySelector('#canvasBackground rect')
-    const svgCanvas = window.svgEditor && window.svgEditor.svgCanvas
-    if (!fondo || !svgCanvas) return
-    if (!config.activas || config.distancia <= 0) { capa.style.display = 'none'; return }
-    const base = lienzo.getBoundingClientRect()
-    const pagina = fondo.getBoundingClientRect()
-    if (pagina.width < 2) return
-    const res = svgCanvas.getResolution()
-    const zoom = pagina.width / res.w
-    const dpr = window.devicePixelRatio || 1
+    if (!config.activas && !config.reglas) { capa.ocultar(); return }
+    const c = capa.contexto()
+    if (!c) return
+    const { ctx, p, v, dpr, visible, origen } = c
 
-    capa.style.display = 'block'
-    capa.style.left = (pagina.left - base.left) + 'px'
-    capa.style.top = (pagina.top - base.top) + 'px'
-    capa.style.width = pagina.width + 'px'
-    capa.style.height = pagina.height + 'px'
-    capa.width = Math.max(1, Math.round(pagina.width * dpr))
-    capa.height = Math.max(1, Math.round(pagina.height * dpr))
-    const ctx = capa.getContext('2d')
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, pagina.width, pagina.height)
-
-    // cada familia se dibuja como horizontales dentro de un lienzo girado
-    const paso = config.distancia * zoom
-    const diag = Math.hypot(pagina.width, pagina.height)
-    for (const angulo of FAMILIAS_GUIA[config.tipo] || FAMILIAS_GUIA.ortogonal) {
-      ctx.save()
-      ctx.beginPath(); ctx.rect(0, 0, pagina.width, pagina.height); ctx.clip()
-      ctx.translate(0, 0)
-      ctx.rotate(-angulo * Math.PI / 180)
-      ctx.lineWidth = 1
-      const desde = Math.floor(-diag / paso); const hasta = Math.ceil(diag / paso)
-      for (let i = desde; i <= hasta; i++) {
-        if (i === 0 && angulo !== 0 && config.tipo !== 'ortogonal') { /* el eje también se dibuja */ }
-        ctx.beginPath()
-        ctx.strokeStyle = i % 5 === 0 ? config.colorPrincipal : config.color
-        ctx.globalAlpha = i % 5 === 0 ? 0.8 : 0.5
-        const y = i * paso + 0.5
-        ctx.moveTo(-diag, y); ctx.lineTo(diag * 2, y)
-        ctx.stroke()
+    if (config.activas && config.distancia > 0) {
+      const d = config.distancia
+      const centro = [(visible.x0 + visible.x1) / 2, (visible.y0 + visible.y1) / 2]
+      const alcance = Math.hypot(visible.x1 - visible.x0, visible.y1 - visible.y0) / 2 + d
+      // si las líneas quedarían a menos de 4 px se dibuja una de cada cinco
+      const salto = d * p.zoom < 4 ? 5 : 1
+      ctx.lineWidth = 1 / p.zoom
+      for (const angulo of FAMILIAS_GUIA[config.tipo] || FAMILIAS_GUIA.ortogonal) {
+        const r = angulo * Math.PI / 180
+        const n = [-Math.sin(r), Math.cos(r)]      // normal: n·P = k·d define cada línea
+        const u = [Math.cos(r), Math.sin(r)]
+        const s0 = centro[0] * n[0] + centro[1] * n[1]
+        const desde = Math.ceil((s0 - alcance) / d); const hasta = Math.floor((s0 + alcance) / d)
+        const t0 = centro[0] * u[0] + centro[1] * u[1]
+        for (let k = desde; k <= hasta; k++) {
+          if (k % salto) continue
+          const principal = k % 5 === 0
+          ctx.beginPath()
+          ctx.strokeStyle = principal ? config.colorPrincipal : config.color
+          ctx.globalAlpha = principal ? 0.55 : 0.4
+          const bx = n[0] * k * d + u[0] * t0; const by = n[1] * k * d + u[1] * t0
+          ctx.moveTo(bx - u[0] * alcance, by - u[1] * alcance)
+          ctx.lineTo(bx + u[0] * alcance, by + u[1] * alcance)
+          ctx.stroke()
+        }
       }
-      ctx.restore()
+      ctx.globalAlpha = 1
     }
-    ctx.globalAlpha = 1
+
+    if (config.reglas) {
+      // en píxeles de pantalla, sobre el borde superior e izquierdo de la vista
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.strokeStyle = 'rgba(44, 42, 69, .55)'
+      ctx.fillStyle = 'rgba(44, 42, 69, .78)'
+      ctx.lineWidth = 1
+      ctx.font = '10px "Segoe UI", Inter, system-ui, sans-serif'
+      const menor = paso(p.zoom, 7); const mayor = paso(p.zoom, 56)
+      ctx.beginPath()
+      for (let x = Math.ceil(visible.x0 / menor) * menor; x <= visible.x1; x += menor) {
+        const px = Math.round(origen[0] + x * p.zoom) + 0.5
+        const conNumero = Math.abs(x / mayor - Math.round(x / mayor)) < 1e-6
+        ctx.moveTo(px, 0); ctx.lineTo(px, conNumero ? 11 : 5)
+        if (conNumero) ctx.fillText(String(Math.round(x)), px + 3, 11)
+      }
+      for (let y = Math.ceil(visible.y0 / menor) * menor; y <= visible.y1; y += menor) {
+        const py = Math.round(origen[1] + y * p.zoom) + 0.5
+        const conNumero = Math.abs(y / mayor - Math.round(y / mayor)) < 1e-6
+        ctx.moveTo(0, py); ctx.lineTo(conNumero ? 11 : 5, py)
+        if (conNumero) {
+          ctx.save(); ctx.translate(11, py - 3); ctx.rotate(-Math.PI / 2)
+          ctx.fillText(String(Math.round(y)), 0, 0); ctx.restore()
+        }
+      }
+      ctx.stroke()
+      void v
+    }
   }
 
   /* --- panel de configuración --- */
@@ -305,6 +348,7 @@ function montarGuias (editor) {
     panel = crear('div', { id: 'rg_panel_guias' }, editor)
     panel.innerHTML = `
       <label class="rg_fila"><input type="checkbox" id="rg_g_activas"> Mostrar guías</label>
+      <label class="rg_fila"><input type="checkbox" id="rg_g_reglas"> Mostrar reglas</label>
       <label class="rg_fila">Distancia
         <input type="number" id="rg_g_distancia" min="1" max="1000" step="1"> unidades
       </label>
@@ -326,6 +370,7 @@ function montarGuias (editor) {
         <input type="text" id="rg_g_unidad" size="4" maxlength="6">
       </label>`
     const activas = panel.querySelector('#rg_g_activas')
+    const reglas = panel.querySelector('#rg_g_reglas')
     const distancia = panel.querySelector('#rg_g_distancia')
     const color = panel.querySelector('#rg_g_color')
     const principal = panel.querySelector('#rg_g_principal')
@@ -333,6 +378,7 @@ function montarGuias (editor) {
     const escala = panel.querySelector('#rg_g_escala')
     const unidad = panel.querySelector('#rg_g_unidad')
     activas.checked = config.activas
+    reglas.checked = config.reglas
     distancia.value = config.distancia
     color.value = config.color
     principal.value = config.colorPrincipal
@@ -342,6 +388,7 @@ function montarGuias (editor) {
     const aplicar = () => {
       config = {
         activas: activas.checked,
+        reglas: reglas.checked,
         distancia: Math.max(1, Number(distancia.value) || 50),
         color: color.value,
         colorPrincipal: principal.value,
@@ -352,7 +399,7 @@ function montarGuias (editor) {
       guardar()
       dibujar()
     }
-    for (const campo of [activas, distancia, color, principal, tipo, escala, unidad]) {
+    for (const campo of [activas, reglas, distancia, color, principal, tipo, escala, unidad]) {
       campo.addEventListener('input', aplicar)
       campo.addEventListener('change', aplicar)
     }
@@ -367,126 +414,20 @@ function montarGuias (editor) {
     if (!panel.hidden) { panel.hidden = true; return }
     const r = ancla.getBoundingClientRect()
     const e = editor.getBoundingClientRect()
-    panel.style.left = Math.min(r.right - e.left + 10, e.width - 260) + 'px'
-    panel.style.top = Math.min(Math.max(r.top - e.top, 8), e.height - 250) + 'px'
     panel.style.right = 'auto'
     panel.hidden = false
+    // se mide ya visible: va bajo el botón y nunca se sale de la pantalla
+    const ancho = panel.offsetWidth; const alto = panel.offsetHeight
+    const izquierda = Math.min(Math.max(r.right - e.left - ancho, 12), e.width - ancho - 12)
+    const arriba = Math.min(r.bottom - e.top + 14, e.height - alto - 12)
+    panel.style.left = izquierda + 'px'
+    panel.style.top = Math.max(arriba, 12) + 'px'
   }
 
   panel = null
-  capa.style.display = 'none'
-  return { dibujar, alternarPanel, obtenerConfig: () => config }
-}
-
-/* --------------------------------------------------------------- reglas */
-
-/**
- * Dos reglas dibujadas en canvas y colocadas justo por fuera de la página:
- * miden exactamente lo que mide la página, así que crecen y se encogen con
- * ella y con el zoom.
- */
-function montarReglas (editor, guias) {
-  const lienzo = editor.querySelector('#svgcanvas')
-  if (!lienzo) return () => {}
-  const reglaX = crear('canvas', { id: 'rg_regla_x', className: 'rg_regla' }, lienzo)
-  const reglaY = crear('canvas', { id: 'rg_regla_y', className: 'rg_regla' }, lienzo)
-  const GRUESO = 20
-
-  const pasos = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]
-  const elegir = (zoom, minimoPx) => pasos.find(p => p * zoom >= minimoPx) || pasos[pasos.length - 1]
-
-  const preparar = (canvas, ancho, alto) => {
-    const dpr = window.devicePixelRatio || 1
-    canvas.style.width = ancho + 'px'
-    canvas.style.height = alto + 'px'
-    canvas.width = Math.max(1, Math.round(ancho * dpr))
-    canvas.height = Math.max(1, Math.round(alto * dpr))
-    const ctx = canvas.getContext('2d')
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.clearRect(0, 0, ancho, alto)
-    ctx.fillStyle = '#3d3832'
-    ctx.strokeStyle = '#3d3832'
-    ctx.lineWidth = 1
-    ctx.font = '9px "Segoe UI", Inter, system-ui, sans-serif'
-    // borde exterior dibujado dentro del canvas: así el ancho del elemento
-    // coincide exactamente con el de la página y las marcas no se desplazan
-    ctx.save()
-    ctx.strokeStyle = '#dfdfe4'
-    ctx.strokeRect(0.5, 0.5, ancho - 1, alto - 1)
-    ctx.restore()
-    return ctx
-  }
-
-  function dibujar () {
-    const fondo = editor.querySelector('#canvasBackground rect')
-    const svgCanvas = window.svgEditor && window.svgEditor.svgCanvas
-    if (!fondo || !svgCanvas) return
-    const base = lienzo.getBoundingClientRect()
-    const pagina = fondo.getBoundingClientRect()
-    if (pagina.width < 2 || pagina.height < 2) return
-    const res = svgCanvas.getResolution()
-    const zoom = pagina.width / res.w
-    const izq = pagina.left - base.left
-    const arr = pagina.top - base.top
-
-    // regla horizontal
-    reglaX.style.display = 'block'
-    reglaX.style.left = izq + 'px'
-    reglaX.style.top = (arr - GRUESO - 2) + 'px'
-    const cx = preparar(reglaX, pagina.width, GRUESO)
-    const pasoX = elegir(zoom, 7)
-    const etiquetaX = elegir(zoom, 46)
-    cx.beginPath()
-    for (let u = 0; u <= res.w + 1e-6; u += pasoX) {
-      const px = Math.round(u * zoom) + 0.5
-      const conNumero = Math.abs(u % etiquetaX) < 1e-6
-      cx.moveTo(px, GRUESO)
-      cx.lineTo(px, conNumero ? GRUESO - 9 : GRUESO - 4)
-      if (conNumero) cx.fillText(String(Math.round(u)), px + 2, 9)
-    }
-    cx.stroke()
-
-    // regla vertical
-    reglaY.style.display = 'block'
-    reglaY.style.left = (izq - GRUESO - 2) + 'px'
-    reglaY.style.top = arr + 'px'
-    const cy = preparar(reglaY, GRUESO, pagina.height)
-    const pasoY = elegir(zoom, 7)
-    const etiquetaY = elegir(zoom, 46)
-    cy.beginPath()
-    for (let u = 0; u <= res.h + 1e-6; u += pasoY) {
-      const py = Math.round(u * zoom) + 0.5
-      const conNumero = Math.abs(u % etiquetaY) < 1e-6
-      cy.moveTo(GRUESO, py)
-      cy.lineTo(conNumero ? GRUESO - 9 : GRUESO - 4, py)
-      if (conNumero) {
-        cy.save()
-        cy.translate(9, py + 2)
-        cy.rotate(-Math.PI / 2)
-        cy.fillText(String(Math.round(u)), 2, 0)
-        cy.restore()
-      }
-    }
-    cy.stroke()
-
-    guias.dibujar()
-  }
-
-  // Sólo se redibuja cuando cambia algo: zoom, tamaño de página o de ventana.
-  let pendiente = false
-  const pedir = () => {
-    if (pendiente) return
-    pendiente = true
-    setTimeout(() => { pendiente = false; dibujar() }, 16)
-  }
-  const observador = new MutationObserver(pedir)
-  observador.observe(lienzo, { attributes: true, attributeFilter: ['style', 'width', 'height'] })
-  const contenido = editor.querySelector('#svgcontent')
-  if (contenido) observador.observe(contenido, { attributes: true, attributeFilter: ['width', 'height', 'viewBox', 'style'] })
-  window.addEventListener('resize', pedir)
-  if (window.ResizeObserver) new ResizeObserver(pedir).observe(lienzo)
+  const repintar = alCambiarVista(editor, dibujar)
   dibujar()
-  return pedir
+  return { dibujar, repintar, alternarPanel, obtenerConfig: () => config }
 }
 
 /* ------------------------------------------------ terminaciones redondeadas */
@@ -567,9 +508,41 @@ function montarExportacionDXF () {
 /* --------------------------------------------------- barra de propiedades */
 
 function acomodarBarraInferior (editor) {
-  // la paleta de colores va a la izquierda, junto al zoom y los controles
+  // zoom, relleno, trazo y estilo de línea viajan juntos en una isla; la tira
+  // de colores queda aparte, a su derecha
+  const barra = editor.querySelector('#tools_bottom')
   const paleta = editor.querySelector('#palette')
+  if (!barra) return
+  const grupo = crear('div', { id: 'rg_propiedades' })
+  for (const hijo of [...barra.children]) if (hijo !== paleta) grupo.append(hijo)
+  barra.prepend(grupo)
   if (paleta) paleta.classList.add('rg_izquierda')
+}
+
+/* ---------------------------------------------------------- vista inicial */
+
+/**
+ * El lienzo no tiene borde, así que no puede arrancar arrimado a una esquina:
+ * la vista se centra en el dibujo existente o, si está vacío, en medio.
+ */
+function centrarVista (editor) {
+  const zona = editor.querySelector('#workarea')
+  const fondo = editor.querySelector('#canvasBackground rect')
+  const contenido = editor.querySelector('#svgcontent')
+  if (!zona || !fondo) return
+  let objetivo = fondo.getBoundingClientRect()
+  const dibujo = contenido && [...contenido.querySelectorAll('g.layer > *:not(title)')]
+  if (dibujo && dibujo.length) {
+    const cajas = dibujo.map(el => el.getBoundingClientRect()).filter(r => r.width || r.height)
+    if (cajas.length) {
+      const izq = Math.min(...cajas.map(r => r.left)); const der = Math.max(...cajas.map(r => r.right))
+      const arr = Math.min(...cajas.map(r => r.top)); const aba = Math.max(...cajas.map(r => r.bottom))
+      objetivo = { left: izq, top: arr, width: der - izq, height: aba - arr }
+    }
+  }
+  const v = zona.getBoundingClientRect()
+  zona.scrollLeft += objetivo.left + objetivo.width / 2 - (v.left + zona.clientWidth / 2)
+  zona.scrollTop += objetivo.top + objetivo.height / 2 - (v.top + zona.clientHeight / 2)
 }
 
 /* -------------------------------------------------------------- arranque */
@@ -585,8 +558,8 @@ export async function iniciarRapidoGraph () {
   const editor = await esperar('.svg_editor')
   await esperar('#tools_left')
   const guias = montarGuias(editor)
-  montarBarraSuperior(editor, sesion, guias)
-  montarBanda(editor)
+  const accesos = montarAccesos(editor, guias)
+  montarFlotantes(editor, accesos)
   const ajustarPaleta = montarPaleta(editor, guias)
   montarRedondeo(editor, editor.querySelector('#tools_left'))
   montarVertices(editor)
@@ -604,9 +577,11 @@ export async function iniciarRapidoGraph () {
     }
     if (++intentos > 8) clearInterval(rotularConector)
   }, 1000)
-  const redibujar = montarReglas(editor, guias)
+  montarTactil(editor)
   acomodarBarraInferior(editor)
-  window.rapidoGraph = { redibujarReglas: redibujar, ajustarPaleta, guias, sesion, cerrarSesion }
+  centrarVista(editor)
+  guias.repintar()
+  window.rapidoGraph = { redibujarReglas: guias.repintar, ajustarPaleta, guias, sesion, cerrarSesion }
   return window.rapidoGraph
 }
 

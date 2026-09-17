@@ -17,7 +17,8 @@
     // distinta en cada carga; el motor de SVG-Edit sí se sigue cacheando.
     window.RG_VERSION = '?v=' + Date.now()
     document.write('<link href="./personalizacion.css' + RG_VERSION + '" rel="stylesheet" media="all">' +
-      '<link href="./rapidograph.css' + RG_VERSION + '" rel="stylesheet" media="all">')
+      '<link href="./rapidograph.css' + RG_VERSION + '" rel="stylesheet" media="all">' +
+      '<link href="./rapidograph-relieve.css' + RG_VERSION + '" rel="stylesheet" media="all">')
   </script>
   <!-- Lacking browser support -->
   <script type="module" src="./browser-not-supported.js"></script>
@@ -59,6 +60,11 @@
     // guarda preferencias y dibujo localmente SIN preguntar: el diálogo de
     // consentimiento de almacenamiento se abría invisible y bloqueaba el mouse
     forceStorage: true,
+    // Lienzo de sensación infinita: la página es enorme y no se dibuja su borde.
+    // Las reglas propias de SVG-Edit se apagan; RapidoGraph pinta las suyas.
+    dimensions: [6000, 4500],
+    canvas_expansion: 1.2,
+    showRulers: false,
     userExtensions: [/* { pathName: '/packages/react-test/dist/react-test.js' } */]
   })
   svgEditor.init()

@@ -1,0 +1,598 @@
+/* ===============================================================
+   RapidoGraph · interfaz en relieve (neumorfismo)
+
+   Una sola superficie continua: el lienzo y los controles comparten el mismo
+   tono, y la forma la dan dos sombras, una de luz arriba a la izquierda y otra
+   de sombra abajo a la derecha. No hay barras ni paneles de fondo: los botones
+   son círculos que salen de la superficie, se elevan al pasar el cursor y se
+   hunden al quedar activos.
+
+   El riesgo del estilo es el contraste: por eso la tinta de iconos y textos es
+   casi negra y el estado activo se marca con color además de con relieve.
+   Se carga después de rapidograph.css.
+   =============================================================== */
+
+:root {
+  --nm-base: #e3e7ee;          /* la superficie: lienzo y controles */
+  --nm-luz: #ffffff;
+  --nm-sombra: #b3bbcc;
+  --nm-sombra-honda: #a3adc1;
+  --nm-tinta: #26243d;         /* 12.1:1 sobre la base */
+  --nm-tinta-suave: #4f4d68;   /* 6.5:1 */
+  --nm-acento: #bd2325;        /* activo: 4.9:1 sobre la base */
+  --nm-indigo: #302a52;
+
+  --nm-relieve: 5px 5px 11px var(--nm-sombra), -5px -5px 11px var(--nm-luz);
+  --nm-relieve-alto: 9px 13px 22px var(--nm-sombra-honda), -8px -8px 18px var(--nm-luz);
+  --nm-relieve-bajo: 2px 2px 5px var(--nm-sombra), -2px -2px 5px var(--nm-luz);
+  --nm-hundido: inset 4px 4px 8px var(--nm-sombra), inset -4px -4px 8px var(--nm-luz);
+  --nm-hundido-suave: inset 2px 2px 5px var(--nm-sombra), inset -2px -2px 5px var(--nm-luz);
+  --nm-isla: 7px 7px 16px var(--nm-sombra), -7px -7px 16px var(--nm-luz);
+
+  /* tinte del icono activo: lleva la tinta oscura al rojo del acento */
+  --nm-filtro-acento: brightness(0) saturate(100%) invert(21%) sepia(74%) saturate(3300%) hue-rotate(346deg) brightness(88%) contrast(94%);
+
+  --nm-tiempo: 190ms;
+  --nm-curva: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* --- variables que leen los componentes de SVG-Edit --- */
+  --main-bg-color: transparent;
+  --icon-bg-color: var(--nm-base);
+  --icon-bg-color-hover: var(--nm-base);
+  --se-hover: var(--nm-base);
+  --text-color: var(--nm-tinta);
+  --border-color: #c9cfdb;
+  --canvas-bg-color: var(--nm-base);
+  --input-color: #eef1f6;
+  --link-color: var(--nm-indigo);
+  --orange-color: var(--nm-acento);
+
+  --se-radio: 50%;
+  --se-icono: 26px;
+  --se-icono-relleno: 11px;
+  --se-icono-margen: 7px;
+  --se-icono-chico: 20px;
+  --se-icono-chico-relleno: 8px;
+  --se-relieve: var(--nm-relieve);
+  --se-relieve-alto: var(--nm-relieve-alto);
+  --se-relieve-hundido: var(--nm-hundido);
+  --se-relieve-chico: var(--nm-relieve-bajo);
+  --se-elevacion: translateY(-3px);
+  --se-pulsacion: translateY(0) scale(0.96);
+  --se-icono-filtro-activo: var(--nm-filtro-acento);
+  --se-icono-pulsado: scale(0.84) rotate(-10deg);
+  --se-transicion: var(--nm-tiempo);
+  --se-curva: var(--nm-curva);
+  --se-foco: 2px solid var(--nm-indigo);
+  --se-sombra: var(--nm-isla);
+  --se-dialogo-fondo: var(--nm-base);
+  --se-dialogo-texto: var(--nm-tinta);
+  --se-cuadrito: 20px;
+  --se-desplegable-x: 66px;      /* los desplegables salen a la derecha del círculo */
+  --top-toolbar-min-height: 0px;
+  --rg-paleta-der: 210px;        /* lo fija el guion según las columnas de herramientas */
+}
+
+/* --------------------------------------------------- superficie y lienzo */
+
+html, body { background: var(--nm-base); }
+
+.svg_editor {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  background: var(--nm-base);
+  color: var(--nm-tinta);
+  font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+  font-size: 12.5px;
+}
+
+#workarea {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--nm-base);
+  touch-action: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nm-sombra) transparent;
+}
+
+#svgcanvas { background: transparent; }
+
+/* el lienzo no tiene borde: la página existe, pero no se ve */
+#canvasBackground > rect {
+  fill: transparent;
+  stroke: none;
+}
+
+#canvasBackground { filter: none; }
+
+::selection { background: rgba(48, 42, 82, .22); }
+
+/* capas de dibujo auxiliar, del tamaño de la vista */
+.rg_capa_vista {
+  position: absolute;
+  pointer-events: none;
+  background: transparent;
+}
+
+/* ------------------------------------------------ fila superior flotante */
+
+#rg_marca {
+  position: absolute;
+  z-index: 8;
+  top: 30px;
+  left: 30px;
+  pointer-events: none;
+}
+
+#rg_marca img { display: block; width: 156px; height: auto; }
+
+#tools_top {
+  position: absolute;
+  z-index: 7;
+  top: 22px;
+  left: max(210px, var(--rg-paleta-der));
+  right: 218px;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: 6px 14px;
+  pointer-events: none;
+}
+
+.svg_editor.rg_con_capas #tools_top { right: 286px; }
+
+#tools_top > * {
+  pointer-events: auto;
+  background: transparent;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+#tools_top .tool_sep { display: none; }
+
+#title_panel > p {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--nm-tinta);
+}
+
+#rg_acciones {
+  display: flex;
+  align-items: center;
+  border: 0;
+  padding: 0;
+}
+
+/* los grupos con campos numéricos o de texto necesitan cuerpo: una isla */
+#tools_top > div:has(se-spin-input, se-input, se-select, se-list):not(#rg_pinceles),
+#tools_top > #marker_panel {
+  background: var(--nm-base);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--nm-relieve);
+  padding: 4px 16px;
+  gap: 4px 10px;
+  order: 0;
+  margin: 0;
+}
+
+#tools_top input#text {
+  font: inherit;
+  color: var(--nm-tinta);
+  background: var(--nm-base);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--nm-hundido-suave);
+  padding: 9px 16px;
+  min-width: 220px;
+}
+
+#tools_top input#text:focus-visible { outline: 2px solid var(--nm-indigo); outline-offset: 2px; }
+
+/* ------------------------------------------------- botones circulares propios */
+
+.rg_circular,
+.rg_herramienta {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--nm-base);
+  box-shadow: var(--nm-relieve);
+  color: var(--nm-tinta);
+  cursor: pointer;
+  transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease;
+}
+
+.rg_circular img,
+.rg_herramienta img {
+  display: block;
+  width: 26px;
+  height: 26px;
+  transition: transform var(--nm-tiempo) var(--nm-curva), filter var(--nm-tiempo) ease;
+}
+
+.rg_circular:hover,
+.rg_herramienta:hover {
+  background: var(--nm-base);
+  transform: translateY(-3px);
+  box-shadow: var(--nm-relieve-alto);
+}
+
+.rg_circular:active,
+.rg_herramienta:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--nm-hundido);
+}
+
+.rg_circular:active img,
+.rg_herramienta:active img { transform: scale(0.84) rotate(-10deg); }
+
+.rg_circular.rg_activa,
+.rg_herramienta.rg_activa,
+.rg_circular[aria-pressed="true"],
+.rg_herramienta[aria-pressed="true"] {
+  background: var(--nm-base);
+  transform: none;
+  box-shadow: var(--nm-hundido);
+}
+
+.rg_circular.rg_activa img,
+.rg_herramienta.rg_activa img,
+.rg_circular[aria-pressed="true"] img,
+.rg_herramienta[aria-pressed="true"] img {
+  filter: var(--nm-filtro-acento);
+  transform: scale(0.84) rotate(-10deg);
+}
+
+.rg_circular:focus-visible,
+.rg_herramienta:focus-visible,
+.rg_capa_btn:focus-visible,
+.rg_pincel:focus-visible,
+.rg_forma:focus-visible {
+  outline: 2px solid var(--nm-indigo);
+  outline-offset: 3px;
+}
+
+/* ------------------------------------------------ herramientas (izquierda) */
+
+#rg_paleta {
+  position: absolute;
+  z-index: 6;
+  left: 22px;
+  top: 92px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#rg_paleta #tools_left {
+  background: transparent;
+  box-shadow: none;
+  margin: 0;
+}
+
+/* --------------------------------------------------- accesos (derecha arriba) */
+
+#rg_sesion {
+  position: absolute;
+  z-index: 8;
+  top: 15px;
+  right: 22px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  zoom: 1;
+}
+
+/* ------------------------------------------------------------ isla de capas */
+
+#rg_capas {
+  position: absolute;
+  z-index: 6;
+  top: 92px;
+  right: 29px;
+  width: 232px;
+  max-height: calc(100% - 92px - 130px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 14px;
+  background: var(--nm-base);
+  border-radius: 24px;
+  box-shadow: var(--nm-isla);
+  color: var(--nm-tinta);
+}
+
+#rg_capas[hidden] { display: none; }
+
+#rg_capas .rg_titulo {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--nm-tinta);
+}
+
+#rg_capas #sidepanels { position: static; width: auto; display: flex; flex-direction: column; min-height: 0; }
+#rg_capas #sidepanel_handle { display: none; }
+#rg_capas #sidepanel_content { display: flex !important; flex-direction: column; min-height: 0; }
+#rg_capas #layerpanel { padding: 0; display: flex; flex-direction: column; min-height: 0; }
+#rg_capas #layersLabel { display: none; }
+
+#rg_capas #layerbuttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  padding: 0;
+  margin: 0 -5px 8px;
+  justify-content: flex-start;
+}
+
+#rg_capas #layerbuttons se-button { --se-icono-margen: 5px; }
+
+.rg_capa_btn {
+  width: 36px;
+  height: 36px;
+  margin: 5px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--nm-base);
+  box-shadow: var(--nm-relieve-bajo);
+  cursor: pointer;
+  transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease;
+}
+
+.rg_capa_btn img { transition: transform var(--nm-tiempo) var(--nm-curva); }
+.rg_capa_btn:hover { background: var(--nm-base); transform: translateY(-2px); box-shadow: var(--nm-relieve); }
+.rg_capa_btn:active { transform: scale(0.95); box-shadow: var(--nm-hundido-suave); }
+.rg_capa_btn:active img { transform: scale(0.84) rotate(-10deg); }
+
+#rg_capas #layerlist {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  max-height: 300px;
+  overflow: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--nm-base);
+  box-shadow: var(--nm-hundido-suave);
+  scrollbar-width: thin;
+  scrollbar-color: var(--nm-sombra) transparent;
+}
+
+#rg_capas #layerlist tbody { display: table; width: 100%; }
+#rg_capas #layerlist tr.layer { background: transparent; }
+#rg_capas #layerlist tr.layer > td { padding: 6px 8px; color: var(--nm-tinta); }
+#rg_capas #layerlist tr.layer:hover { background: rgba(255, 255, 255, .55); }
+
+#rg_capas #layerlist tr.layersel {
+  background: transparent;
+  border: 0;
+}
+
+#rg_capas #layerlist tr.layersel > td.layername {
+  color: var(--nm-acento);
+  font-weight: 700;
+}
+
+#rg_capas #selLayerNames { margin-top: 10px; }
+#rg_capas p { margin: 8px 0 0; color: var(--nm-tinta-suave); }
+
+/* ------------------------------------------------- propiedades (abajo) */
+
+#tools_bottom {
+  position: absolute;
+  z-index: 7;
+  left: 29px;
+  right: 29px;
+  bottom: 22px;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  overflow: visible;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 18px;
+  font-size: 12.5px;
+  pointer-events: none;
+}
+
+#tools_bottom > * { pointer-events: auto; }
+
+#rg_propiedades {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 6px 20px;
+  background: var(--nm-base);
+  border-radius: 999px;
+  box-shadow: var(--nm-isla);
+}
+
+#tools_bottom se-list,
+#tools_bottom se-select { margin-bottom: 0; }
+
+#tools_bottom .bottom-icon { width: 26px; }
+
+/* la tira de colores es un surco: se hunde en la superficie */
+#palette.rg_izquierda {
+  flex: 1 1 320px;
+  min-width: 0;
+  margin: 0;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--nm-base);
+  box-shadow: var(--nm-hundido-suave);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nm-sombra) transparent;
+}
+
+/* --------------------------------------------- paneles, franjas y avisos */
+
+#rg_panel_guias,
+#rg_panel_formas {
+  background: var(--nm-base);
+  border: 0;
+  border-radius: 24px;
+  box-shadow: var(--nm-isla);
+  color: var(--nm-tinta);
+  padding: 18px 20px;
+}
+
+#rg_panel_guias input[type="number"],
+#rg_panel_guias input[type="text"],
+#rg_panel_guias select,
+.rg_formas_cabecera select,
+.rg_campo_flotante input,
+#rg_campo_paralela input {
+  color: var(--nm-tinta);
+  background: var(--nm-base);
+  border: 0;
+  border-radius: 10px;
+  box-shadow: var(--nm-hundido-suave);
+  padding: 6px 9px;
+}
+
+#rg_panel_guias input[type="color"] {
+  border: 0;
+  border-radius: 10px;
+  background: var(--nm-base);
+  box-shadow: var(--nm-hundido-suave);
+  padding: 4px;
+}
+
+#rg_panel_guias input:focus-visible,
+#rg_panel_guias select:focus-visible,
+.rg_formas_cabecera select:focus-visible,
+.rg_campo_flotante input:focus-visible,
+#rg_campo_paralela input:focus-visible {
+  outline: 2px solid var(--nm-indigo);
+  outline-offset: 2px;
+}
+
+#rg_panel_guias input[type="checkbox"] { accent-color: var(--nm-indigo); }
+
+.rg_formas_rejilla { scrollbar-color: var(--nm-sombra) transparent; gap: 6px; }
+
+.rg_forma {
+  border: 0;
+  border-radius: 50%;
+  background: var(--nm-base);
+  box-shadow: var(--nm-relieve-bajo);
+  transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease;
+}
+
+.rg_forma svg { transition: transform var(--nm-tiempo) var(--nm-curva); }
+.rg_forma:hover { background: var(--nm-base); border-color: transparent; transform: translateY(-2px); box-shadow: var(--nm-relieve); }
+.rg_forma:active { transform: scale(0.95); box-shadow: var(--nm-hundido-suave); }
+.rg_forma:active svg { transform: scale(0.84) rotate(-10deg); }
+.rg_formas_pie { color: var(--nm-tinta-suave); }
+
+#rg_pinceles {
+  background: var(--nm-base);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--nm-relieve);
+  padding: 5px 16px;
+  margin-left: 0;
+  gap: 4px;
+  overflow: visible;
+}
+
+.rg_pinceles_titulo { color: var(--nm-tinta-suave); }
+
+.rg_pincel {
+  border-radius: 14px;
+  color: var(--nm-tinta);
+  transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease;
+}
+
+.rg_pincel svg { transition: transform var(--nm-tiempo) var(--nm-curva); }
+.rg_pincel:hover { background: transparent; transform: translateY(-2px); box-shadow: var(--nm-relieve-bajo); }
+.rg_pincel[aria-pressed="true"] { background: transparent; box-shadow: var(--nm-hundido-suave); color: var(--nm-acento); }
+.rg_pincel[aria-pressed="true"] svg { transform: scale(0.9); }
+
+#rg_campo_paralela,
+.rg_campo_flotante {
+  background: var(--nm-base);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--nm-isla);
+  color: var(--nm-tinta);
+  padding: 8px 18px;
+}
+
+/* los avisos sí llevan color pleno: son mensajes, no superficie */
+#rg_aviso_modo, #rg_aviso_dibujo, #rg_aviso_iman, #rg_aviso_varita { top: 92px; }
+#rg_campo_paralela, .rg_campo_flotante { top: 136px; }
+
+/* manijas y marcas de precisión, sobre la nueva superficie */
+.rg_manija { background: var(--nm-base); border-color: var(--nm-acento); box-shadow: var(--nm-relieve-bajo); border-radius: 50%; }
+.rg_manija:hover { background: #ffffff; }
+
+/* ------------------------------------------------------------- anotador */
+
+/* el anotador inyecta su hoja después: hace falta más especificidad que la suya */
+body #an_boton { bottom: 100px; right: 29px; }
+body #an_panel { bottom: 152px; right: 29px; }
+
+/* ------------------------------------------------------ pantallas estrechas */
+
+@media (max-width: 1200px) {
+  :root { --se-icono: 22px; --se-icono-relleno: 10px; --se-icono-margen: 5px; --se-desplegable-x: 56px; }
+  .rg_circular, .rg_herramienta { width: 42px; height: 42px; margin: 5px; }
+  .rg_circular img, .rg_herramienta img { width: 22px; height: 22px; }
+  #rg_marca { top: 26px; left: 24px; }
+  #rg_marca img { width: 128px; }
+  #tools_top { top: 16px; left: max(170px, var(--rg-paleta-der)); right: 176px; gap: 4px 8px; }
+  .svg_editor.rg_con_capas #tools_top { right: 250px; }
+  #rg_paleta { left: 14px; top: 78px; }
+  #rg_sesion { top: 11px; right: 14px; }
+  #rg_capas { top: 78px; right: 19px; width: 212px; }
+  #tools_bottom { left: 19px; right: 19px; bottom: 16px; }
+}
+
+@media (max-width: 820px) {
+  /* en vertical la fila superior baja una línea para no pelear con el logotipo */
+  #tools_top { top: 64px; left: var(--rg-paleta-der); right: 12px; }
+  .svg_editor.rg_con_capas #tools_top { right: 12px; }
+  #rg_paleta { top: 64px; left: 8px; }
+  #rg_capas { top: 126px; right: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --nm-tiempo: 0ms; --se-elevacion: none; --se-icono-pulsado: none; }
+  .rg_circular:hover, .rg_herramienta:hover, .rg_capa_btn:hover, .rg_forma:hover, .rg_pincel:hover { transform: none; }
+}

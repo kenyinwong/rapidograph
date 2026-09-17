@@ -15,17 +15,10 @@
 
 /* ------------------------------------------------------------- geometría */
 
-function pagina (editor) {
-  const fondo = editor.querySelector('#canvasBackground rect')
-  const svgCanvas = window.svgEditor && window.svgEditor.svgCanvas
-  if (!fondo || !svgCanvas) return null
-  const rect = fondo.getBoundingClientRect()
-  const res = svgCanvas.getResolution()
-  return { rect, zoom: rect.width / res.w || 1 }
-}
-
-const aDocumento = (p, x, y) => [(x - p.rect.left) / p.zoom, (y - p.rect.top) / p.zoom]
-const aPantalla = (p, x, y) => [p.rect.left + x * p.zoom, p.rect.top + y * p.zoom]
+// La geometría del lienzo es compartida; se importa con la misma marca de
+// versión con que se cargó este archivo para no quedar en la caché del navegador.
+const version = new URL(import.meta.url).search
+const { pagina, aDocumento, aPantalla } = await import('./rapidograph-lienzo.js' + version)
 
 /** Intersección de las rectas (infinitas) que contienen a dos segmentos. */
 function interseccion (a, b) {

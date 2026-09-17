@@ -13,17 +13,10 @@
  *     resaltador, punteado) que se aplican a todo lo que se dibuje después.
  */
 
-const sc = () => window.svgEditor && window.svgEditor.svgCanvas
-
-function pagina (editor) {
-  const fondo = editor.querySelector('#canvasBackground rect')
-  if (!fondo || !sc()) return null
-  const rect = fondo.getBoundingClientRect()
-  const res = sc().getResolution()
-  return { rect, zoom: rect.width / res.w || 1 }
-}
-
-const aDocumento = (p, x, y) => [(x - p.rect.left) / p.zoom, (y - p.rect.top) / p.zoom]
+// La geometría del lienzo es compartida; se importa con la misma marca de
+// versión con que se cargó este archivo para no quedar en la caché del navegador.
+const version = new URL(import.meta.url).search
+const { sc, pagina, aDocumento, crearCapaVista, vista } = await import('./rapidograph-lienzo.js' + version)
 
 /** Estilo de trazo vigente del editor, para que lo nuevo salga como lo demás. */
 function estiloActual () {
@@ -54,32 +47,18 @@ const redondear = (n) => Math.round(n * 100) / 100
 /* --------------------------------------------------------- lienzo de previa */
 
 function crearPrevia (editor) {
-  const lienzo = editor.querySelector('#svgcanvas')
-  const capa = document.createElement('canvas')
-  capa.className = 'rg_regla'
-  capa.style.zIndex = 4
-  capa.style.background = 'transparent'
-  lienzo.append(capa)
-
-  function contexto (p) {
-    const base = lienzo.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
-    capa.style.display = 'block'
-    capa.style.left = (p.rect.left - base.left) + 'px'
-    capa.style.top = (p.rect.top - base.top) + 'px'
-    capa.style.width = p.rect.width + 'px'
-    capa.style.height = p.rect.height + 'px'
-    capa.width = Math.max(1, Math.round(p.rect.width * dpr))
-    capa.height = Math.max(1, Math.round(p.rect.height * dpr))
-    const ctx = capa.getContext('2d')
-    ctx.setTransform(dpr * p.zoom, 0, 0, dpr * p.zoom, 0, 0)
-    ctx.clearRect(0, 0, p.rect.width / p.zoom, p.rect.height / p.zoom)
-    ctx.strokeStyle = '#dc3839'
-    ctx.lineWidth = 1.5 / p.zoom
-    return ctx
+  const capa = crearCapaVista(editor, 'rg_previa', 4)
+  return {
+    /** Contexto en unidades del documento, ya limpio y con el trazo de previa. */
+    contexto () {
+      const c = capa.contexto()
+      if (!c) return null
+      c.ctx.strokeStyle = '#dc3839'
+      c.ctx.lineWidth = 1.5 / c.p.zoom
+      return c.ctx
+    },
+    ocultar: capa.ocultar
   }
-
-  return { contexto, ocultar: () => { capa.style.display = 'none' } }
 }
 
 /* -------------------------------------------------- gestor de modos propios */
@@ -348,8 +327,16 @@ function montarBote (editor, herramientas, gestor) {
   function zonaDelimitada (x, y) {
     const contenido = document.getElementById('svgcontent')
     const res = sc().getResolution()
-    const esc = Math.min(2, 2400 / Math.max(res.w, res.h))       // píxeles por unidad
-    const W = Math.ceil(res.w * esc); const H = Math.ceil(res.h * esc)
+    // región visible del documento: el lienzo no tiene borde, así que el mapa
+    // de bits cubre lo que se ve en pantalla y no la página entera
+    const pg = pagina(editor); const v = vista(editor)
+    const ox = Math.max(0, (v.left - pg.rect.left) / pg.zoom)
+    const oy = Math.max(0, (v.top - pg.rect.top) / pg.zoom)
+    const ancho = Math.min(res.w, (v.left + v.width - pg.rect.left) / pg.zoom) - ox
+    const alto = Math.min(res.h, (v.top + v.height - pg.rect.top) / pg.zoom) - oy
+    if (ancho <= 0 || alto <= 0) return null
+    const esc = Math.min(Math.max(pg.zoom * 1.5, 0.5), 4, 2400 / Math.max(ancho, alto))   // píxeles por unidad
+    const W = Math.ceil(ancho * esc); const H = Math.ceil(alto * esc)
     const lienzo = document.createElement('canvas')
     lienzo.width = W; lienzo.height = H
     const ctx = lienzo.getContext('2d', { willReadFrequently: true })
@@ -359,7 +346,7 @@ function montarBote (editor, herramientas, gestor) {
 
     for (const el of contenido.querySelectorAll('line, polyline, polygon, rect, circle, ellipse, path')) {
       const m = aRaiz.multiply(el.getScreenCTM())     // del elemento a unidades del documento
-      ctx.setTransform(esc * m.a, esc * m.b, esc * m.c, esc * m.d, esc * m.e, esc * m.f)
+      ctx.setTransform(esc * m.a, esc * m.b, esc * m.c, esc * m.d, esc * (m.e - ox), esc * (m.f - oy))
       const g = (a) => parseFloat(el.getAttribute(a)) || 0
       let camino
       switch (el.tagName.toLowerCase()) {
@@ -387,7 +374,7 @@ function montarBote (editor, herramientas, gestor) {
     const datos = ctx.getImageData(0, 0, W, H).data
     const pared = new Uint8Array(W * H)
     for (let i = 0; i < W * H; i++) pared[i] = datos[i * 4 + 3] > 60 ? 1 : 0
-    const x0 = Math.round(x * esc); const y0 = Math.round(y * esc)
+    const x0 = Math.round((x - ox) * esc); const y0 = Math.round((y - oy) * esc)
     if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H || pared[y0 * W + x0]) return null
 
     // inundación por líneas de barrido
@@ -413,7 +400,10 @@ function montarBote (editor, herramientas, gestor) {
         xi++
       }
     }
-    if (area > W * H * 0.6) return { abierta: true }
+    // si la mancha llega al borde de lo visible, la zona no está cerrada (o no
+    // cabe completa en pantalla)
+    for (let i = 0; i < W; i++) if (lleno[i] || lleno[(H - 1) * W + i]) return { abierta: true }
+    for (let j = 0; j < H; j++) if (lleno[j * W] || lleno[j * W + W - 1]) return { abierta: true }
 
     // contorno: aristas entre píxel lleno y vacío, encadenadas en lazos
     const esta = (px, py) => px >= 0 && py >= 0 && px < W && py < H && lleno[py * W + px] === 1
@@ -467,7 +457,7 @@ function montarBote (editor, herramientas, gestor) {
       const mitad1 = simplificar(lazo.slice(0, lejos + 1), eps)
       const mitad2 = simplificar([...lazo.slice(lejos), lazo[0]], eps)
       const pts = [...mitad1.slice(0, -1), ...mitad2.slice(0, -1)]
-      return 'M ' + pts.map(q => `${redondear(q[0] / esc)} ${redondear(q[1] / esc)}`).join(' L ') + ' Z'
+      return 'M ' + pts.map(q => `${redondear(q[0] / esc + ox)} ${redondear(q[1] / esc + oy)}`).join(' L ') + ' Z'
     })
     return { d: partes.join(' '), area: area / (esc * esc) }
   }
@@ -496,7 +486,7 @@ function montarBote (editor, herramientas, gestor) {
       let zona = null
       try { zona = zonaDelimitada(x, y) } catch (err) { console.error('Bote de pintura:', err) }
       if (!zona) { gestor.avisar('Ahí hay un trazo o no se pudo calcular la zona. Haz clic dentro del área a rellenar.'); return }
-      if (zona.abierta) { gestor.avisar('Esa zona no está cerrada por líneas: el color se escaparía por toda la página.'); return }
+      if (zona.abierta) { gestor.avisar('Esa zona no está cerrada por líneas, o no cabe completa en pantalla: aleja el zoom e inténtalo de nuevo.'); return }
       const relleno = sc().addSVGElementsFromJson({
         element: 'path',
         attr: { d: zona.d, id: sc().getNextId(), class: 'rg_relleno', fill: tinta, 'fill-rule': 'evenodd', stroke: 'none' }
