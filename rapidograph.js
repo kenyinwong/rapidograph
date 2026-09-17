@@ -219,7 +219,9 @@ function montarPaleta (editor, guias) {
     // entre la fila superior flotante y el grupo de propiedades de abajo
     const disponible = window.innerHeight - 96 - 118
     const total = herramientas.children.length
-    const filas = Math.min(total, Math.max(1, Math.floor(disponible / alto)))
+    const caben = Math.min(total, Math.max(1, Math.floor(disponible / alto)))
+    // columnas parejas: mejor 14 + 13 que 23 + 4
+    const filas = Math.ceil(total / Math.ceil(total / caben))
     herramientas.style.display = 'grid'
     herramientas.style.gridAutoFlow = 'column'
     herramientas.style.gridTemplateRows = `repeat(${filas}, auto)`

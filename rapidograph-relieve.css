@@ -30,6 +30,10 @@
   --nm-relieve-bajo: 2px 2px 5px var(--nm-sombra), -2px -2px 5px var(--nm-luz);
   --nm-hundido: inset 4px 4px 8px var(--nm-sombra), inset -4px -4px 8px var(--nm-luz);
   --nm-hundido-suave: inset 2px 2px 5px var(--nm-sombra), inset -2px -2px 5px var(--nm-luz);
+  /* los botones miden la mitad: su sombra también, o los emborrona */
+  --nm-relieve-boton: 3px 3px 6px var(--nm-sombra), -3px -3px 6px var(--nm-luz);
+  --nm-relieve-boton-alto: 5px 7px 12px var(--nm-sombra-honda), -4px -4px 9px var(--nm-luz);
+  --nm-hundido-boton: inset 2px 2px 4px var(--nm-sombra), inset -2px -2px 4px var(--nm-luz);
   --nm-isla: 7px 7px 16px var(--nm-sombra), -7px -7px 16px var(--nm-luz);
 
   /* tinte del icono activo: lleva la tinta oscura al rojo del acento */
@@ -51,16 +55,16 @@
   --orange-color: var(--nm-acento);
 
   --se-radio: 50%;
-  --se-icono: 26px;
-  --se-icono-relleno: 11px;
-  --se-icono-margen: 7px;
-  --se-icono-chico: 20px;
-  --se-icono-chico-relleno: 8px;
-  --se-relieve: var(--nm-relieve);
-  --se-relieve-alto: var(--nm-relieve-alto);
-  --se-relieve-hundido: var(--nm-hundido);
+  --se-icono: 13px;
+  --se-icono-relleno: 5.5px;
+  --se-icono-margen: 3.5px;
+  --se-icono-chico: 10px;
+  --se-icono-chico-relleno: 4px;
+  --se-relieve: var(--nm-relieve-boton);
+  --se-relieve-alto: var(--nm-relieve-boton-alto);
+  --se-relieve-hundido: var(--nm-hundido-boton);
   --se-relieve-chico: var(--nm-relieve-bajo);
-  --se-elevacion: translateY(-3px);
+  --se-elevacion: translateY(-2px);
   --se-pulsacion: translateY(0) scale(0.96);
   --se-icono-filtro-activo: var(--nm-filtro-acento);
   --se-icono-pulsado: scale(0.84) rotate(-10deg);
@@ -71,7 +75,7 @@
   --se-dialogo-fondo: var(--nm-base);
   --se-dialogo-texto: var(--nm-tinta);
   --se-cuadrito: 20px;
-  --se-desplegable-x: 66px;      /* los desplegables salen a la derecha del círculo */
+  --se-desplegable-x: 33px;      /* los desplegables salen a la derecha del círculo */
   --top-toolbar-min-height: 0px;
   --rg-paleta-der: 210px;        /* lo fija el guion según las columnas de herramientas */
 }
@@ -209,14 +213,14 @@ html, body { background: var(--nm-base); }
 .rg_herramienta {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  margin: 7px;
+  width: 24px;
+  height: 24px;
+  margin: 3.5px;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: var(--nm-base);
-  box-shadow: var(--nm-relieve);
+  box-shadow: var(--nm-relieve-boton);
   color: var(--nm-tinta);
   cursor: pointer;
   transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease;
@@ -225,22 +229,22 @@ html, body { background: var(--nm-base); }
 .rg_circular img,
 .rg_herramienta img {
   display: block;
-  width: 26px;
-  height: 26px;
+  width: 13px;
+  height: 13px;
   transition: transform var(--nm-tiempo) var(--nm-curva), filter var(--nm-tiempo) ease;
 }
 
 .rg_circular:hover,
 .rg_herramienta:hover {
   background: var(--nm-base);
-  transform: translateY(-3px);
-  box-shadow: var(--nm-relieve-alto);
+  transform: translateY(-2px);
+  box-shadow: var(--nm-relieve-boton-alto);
 }
 
 .rg_circular:active,
 .rg_herramienta:active {
   transform: translateY(0) scale(0.96);
-  box-shadow: var(--nm-hundido);
+  box-shadow: var(--nm-hundido-boton);
 }
 
 .rg_circular:active img,
@@ -252,7 +256,7 @@ html, body { background: var(--nm-base); }
 .rg_herramienta[aria-pressed="true"] {
   background: var(--nm-base);
   transform: none;
-  box-shadow: var(--nm-hundido);
+  box-shadow: var(--nm-hundido-boton);
 }
 
 .rg_circular.rg_activa img,
@@ -350,16 +354,16 @@ html, body { background: var(--nm-base); }
   height: auto;
   border: 0;
   padding: 0;
-  margin: 0 -5px 8px;
+  margin: 0 -2.5px 8px;
   justify-content: flex-start;
 }
 
-#rg_capas #layerbuttons se-button { --se-icono-margen: 5px; }
+#rg_capas #layerbuttons se-button { --se-icono-margen: 2.5px; }
 
 .rg_capa_btn {
-  width: 36px;
-  height: 36px;
-  margin: 5px;
+  width: 18px;
+  height: 18px;
+  margin: 2.5px;
   display: grid;
   place-items: center;
   border: 0;
@@ -370,8 +374,8 @@ html, body { background: var(--nm-base); }
   transition: transform var(--nm-tiempo) var(--nm-curva), box-shadow var(--nm-tiempo) ease;
 }
 
-.rg_capa_btn img { transition: transform var(--nm-tiempo) var(--nm-curva); }
-.rg_capa_btn:hover { background: var(--nm-base); transform: translateY(-2px); box-shadow: var(--nm-relieve); }
+.rg_capa_btn img { width: 9px; height: 9px; transition: transform var(--nm-tiempo) var(--nm-curva); }
+.rg_capa_btn:hover { background: var(--nm-base); transform: translateY(-1px); box-shadow: var(--nm-relieve-boton); }
 .rg_capa_btn:active { transform: scale(0.95); box-shadow: var(--nm-hundido-suave); }
 .rg_capa_btn:active img { transform: scale(0.84) rotate(-10deg); }
 
@@ -574,9 +578,9 @@ body #an_panel { bottom: 152px; right: 29px; }
 /* ------------------------------------------------------ pantallas estrechas */
 
 @media (max-width: 1200px) {
-  :root { --se-icono: 22px; --se-icono-relleno: 10px; --se-icono-margen: 5px; --se-desplegable-x: 56px; }
-  .rg_circular, .rg_herramienta { width: 42px; height: 42px; margin: 5px; }
-  .rg_circular img, .rg_herramienta img { width: 22px; height: 22px; }
+  :root { --se-icono: 11px; --se-icono-relleno: 5px; --se-icono-margen: 2.5px; --se-desplegable-x: 28px; }
+  .rg_circular, .rg_herramienta { width: 21px; height: 21px; margin: 2.5px; }
+  .rg_circular img, .rg_herramienta img { width: 11px; height: 11px; }
   #rg_marca { top: 26px; left: 24px; }
   #rg_marca img { width: 128px; }
   #tools_top { top: 16px; left: max(170px, var(--rg-paleta-der)); right: 176px; gap: 4px 8px; }
