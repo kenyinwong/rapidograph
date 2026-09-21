@@ -150,6 +150,18 @@ function montarFlotantes (editor, accesos) {
       else window.alert('Esa función todavía se está cargando; prueba de nuevo en un momento.')
     })
   }
+  // código, deshacer y rehacer viajan con las acciones: en teléfono todo eso es
+  // una tira propia que se desliza, aparte de la tira de propiedades
+  for (const id of ['#editor_panel', '#history_panel']) {
+    const panel = fila.querySelector(id)
+    if (panel) acciones.append(panel)
+  }
+  const estrecho = window.matchMedia('(max-width: 820px)')
+  const ubicarAcciones = () => {
+    if (estrecho.matches) { if (acciones.parentNode !== editor) editor.append(acciones) } else if (acciones.parentNode !== fila) fila.prepend(acciones)
+  }
+  ubicarAcciones()
+  estrecho.addEventListener('change', ubicarAcciones)
 
   // capas: isla flotante a la derecha, plegable y recordada
   const capas = crear('div', { id: 'rg_capas' }, editor)
@@ -219,10 +231,12 @@ function montarPaleta (editor, guias) {
     const alto = boton.height || 54
     // entre la fila superior flotante y el grupo de propiedades de abajo
     const disponible = window.innerHeight - 96 - 118
-    const total = herramientas.children.length
+    const total = [...herramientas.children].filter(h => getComputedStyle(h).display !== 'none').length
     const caben = Math.min(total, Math.max(1, Math.floor(disponible / alto)))
-    // columnas parejas: mejor 14 + 13 que 23 + 4
-    const filas = Math.ceil(total / Math.ceil(total / caben))
+    // columnas parejas: mejor 14 + 13 que 23 + 4. En teléfono siempre son dos
+    // columnas: la paleta se desliza en vez de ensancharse sobre el dibujo
+    const estrecho = window.matchMedia('(max-width: 820px)').matches
+    const filas = Math.ceil(total / (estrecho ? 2 : Math.ceil(total / caben)))
     herramientas.style.display = 'grid'
     herramientas.style.gridAutoFlow = 'column'
     herramientas.style.gridTemplateRows = `repeat(${filas}, auto)`

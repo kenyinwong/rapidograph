@@ -163,7 +163,8 @@ html, body { background: var(--nm-base); }
   align-items: center;
 }
 
-#tools_top .tool_sep { display: none; }
+#tools_top .tool_sep,
+#rg_acciones .tool_sep { display: none; }
 
 #title_panel > p {
   margin: 0;
@@ -179,6 +180,17 @@ html, body { background: var(--nm-base); }
   align-items: center;
   border: 0;
   padding: 0;
+}
+
+/* código, deshacer y rehacer viven dentro de las acciones (rapidograph.js) */
+#rg_acciones > #editor_panel,
+#rg_acciones > #history_panel {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
 }
 
 /* los grupos con campos numéricos o de texto necesitan cuerpo: una isla */
@@ -608,11 +620,85 @@ body #an_panel { bottom: 152px; right: 29px; }
 }
 
 @media (max-width: 820px) {
-  /* en vertical la fila superior baja una línea para no pelear con el logotipo */
-  #tools_top { top: 64px; left: var(--rg-paleta-der); right: 12px; }
-  .svg_editor.rg_con_capas #tools_top { right: 12px; }
-  #rg_paleta { top: 64px; left: 8px; }
-  #rg_capas { top: 126px; right: 12px; }
+  /* Teléfono: nada se apila sobre el dibujo. Las acciones y las propiedades son
+     dos tiras de una sola línea que se deslizan con el dedo; la paleta es una
+     columna doble que también se desliza; abajo, otra tira. */
+  html, body, .svg_editor { height: 100dvh; }
+
+  #rg_marca { top: 16px; left: 12px; }
+  #rg_marca img { width: 118px; }
+  #rg_sesion { top: 6px; right: 6px; }
+
+  /* tira de acciones: fuera de #tools_top (la mueve rapidograph.js) */
+  .svg_editor > #rg_acciones {
+    position: absolute;
+    z-index: 7;
+    top: 48px; left: 0; right: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    padding: 2px 8px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .svg_editor > #rg_acciones::-webkit-scrollbar { display: none; }
+  #rg_acciones > * { flex: 0 0 auto; }
+
+  /* tira de propiedades de lo seleccionado, en una sola línea */
+  #tools_top {
+    top: 96px; left: 0; right: 0;
+    flex-wrap: nowrap;
+    gap: 0 8px;
+    padding: 2px 10px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    pointer-events: none;
+  }
+  .svg_editor.rg_con_capas #tools_top { right: 0; }
+  #tools_top::-webkit-scrollbar { display: none; }
+  #tools_top > #title_panel { display: none; }
+  #tools_top > div:has(se-spin-input, se-input, se-select, se-list):not(#rg_pinceles),
+  #tools_top > #marker_panel,
+  #rg_pinceles { margin: 4px 0; flex-wrap: nowrap; white-space: nowrap; }
+  #tools_top input#text { min-width: 160px; margin: 4px 0; }
+
+  /* la paleta arranca bajo las dos tiras y se desliza en vertical */
+  #rg_paleta {
+    top: 148px; left: 2px;
+    max-height: calc(100dvh - 148px - 84px);
+    padding: 4px 4px 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  #rg_paleta::-webkit-scrollbar { display: none; }
+
+  #rg_capas { top: 148px; right: 8px; width: min(272px, calc(100vw - 100px)); max-height: calc(100dvh - 148px - 96px); }
+
+  #tools_bottom {
+    left: 0; right: 0; bottom: 6px;
+    flex-wrap: nowrap;
+    gap: 12px;
+    padding: 12px 10px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  #tools_bottom::-webkit-scrollbar { display: none; }
+  #rg_propiedades { flex: 0 0 auto; padding: 4px 14px; }
+  #palette.rg_izquierda { flex: 0 0 auto; width: 560px; }
+
+  #rg_aviso_modo, #rg_aviso_dibujo, #rg_aviso_iman, #rg_aviso_varita { top: 150px; left: 92px; right: 8px; max-width: none; font-size: 12px; }
+  #rg_campo_paralela, .rg_campo_flotante { top: 196px; }
+  #rg_panel_guias, #rg_panel_formas { max-width: calc(100vw - 16px); }
+
+  body #an_boton { bottom: 78px; right: 8px; }
+  body #an_panel { bottom: 126px; right: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
